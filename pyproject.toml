@@ -25,6 +25,9 @@ ignore = [
     "FBT003",
     "TRY002",
     "TRY003",
+    "TD", # TODO rules
+    "FIX002",
+    "PLR2004", # TODO: remove after release
 ]
 
 [tool.ruff.lint.per-file-ignores]
