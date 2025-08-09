@@ -1,0 +1,60 @@
+[tool.ruff]
+line-length = 88
+indent-width = 4
+target-version = "py311"
+
+[tool.ruff.format]
+preview = true
+indent-style = "space"
+line-ending = "lf"
+quote-style = "double"
+skip-magic-trailing-comma = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D",
+    "COM",
+    "ISC",
+    "DTZ",
+    "N812",
+    "PTH112",
+    "PTH113",
+    "PTH123",
+    "G004", # logging statement uses f-string
+    "FBT003",
+    "TRY002",
+    "TRY003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+    "ANN001",
+    "ANN201",
+    "S101",
+    "PTH110",
+    "PTH202",
+    "PT023",
+    "PTH107",
+]
+
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
+
+
+[tool.mypy]
+python_version = "3.11"
+exclude = ["tests/*"]
+strict = true
+warn_unused_configs = true
+warn_return_any = true
+# ignore_missing_imports = true
+
+disallow_any_generics = true
+disallow_untyped_defs = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disable_error_code = []
