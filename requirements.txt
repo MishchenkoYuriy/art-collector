@@ -4,5 +4,5 @@ pre-commit==4.2.0
 requests==2.32.4
 requests-oauthlib==2.0.0
 python-dotenv==1.1.1
-types-requests
-types-requests-oauthlib
+types-requests==2.32.4.20250809
+types-requests-oauthlib==2.0.0.20250809
