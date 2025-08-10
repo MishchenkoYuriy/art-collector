@@ -24,9 +24,9 @@ class Helper:
     def __init__(self) -> None:
         self.save_dir = Path("temp")
         self.config_file = Path(__file__).resolve().parent.parent / "config.json"
-        self.FILE_SIZE_LIMIT_MB = int(os.getenv("LOCAL_FILE_SIZE_LIMIT_MB"))
+        self.FILE_SIZE_LIMIT_MB = int(os.getenv("LOCAL_FILE_SIZE_LIMIT_MB", "10"))
         self.FILE_SIZE_LIMIT_BYTES = self.FILE_SIZE_LIMIT_MB * 1024 * 1024
-        self.FOLDER_SIZE_LIMIT_MB = int(os.getenv("LOCAL_FOLDER_SIZE_LIMIT_MB"))
+        self.FOLDER_SIZE_LIMIT_MB = int(os.getenv("LOCAL_FOLDER_SIZE_LIMIT_MB", "1000"))
         self.FOLDER_SIZE_LIMIT_BYTES = self.FOLDER_SIZE_LIMIT_MB * 1024 * 1024
 
         logging.basicConfig(
@@ -44,16 +44,20 @@ class Helper:
                 resp = requests.get(image_meta.url, stream=True, timeout=10)
                 resp.raise_for_status()
 
-                file_size: int | None = int(resp.headers.get("content-length", None)) if resp.headers.get("content-length", None) else None
+                file_size: int | None = (
+                    int(resp.headers["content-length"])
+                    if resp.headers.get("content-length", None)
+                    else None
+                )
                 if file_size is None:
                     self.logger.warning(
                         f"Could not determine file size for {image_meta.url}. "
                         f"Content-Length header is missing. Skipping..."
                     )
                     continue
-                
+
                 if file_size > self.FILE_SIZE_LIMIT_BYTES:
-                    size_in_mb = round(file_size / (1024 * 1024), 2)
+                    size_in_mb = self.convert_bytes_to_mb(file_size)
                     self.logger.warning(
                         f"The file {image_meta.url} exceeded the "
                         f"{self.FILE_SIZE_LIMIT_MB} MB limit. "
@@ -63,12 +67,12 @@ class Helper:
 
                 # Check if adding this file would exceed folder size limit
                 if local_folder_size + file_size > self.FOLDER_SIZE_LIMIT_BYTES:
-                    folder_size_mb = round(local_folder_size / (1024 * 1024), 2)
-                    file_size_mb = round(file_size / (1024 * 1024), 2)
+                    folder_size_mb = self.convert_bytes_to_mb(local_folder_size)
+                    file_size_mb = self.convert_bytes_to_mb(file_size)
                     self.logger.warning(
-                        f"Adding file {image_meta.url} ({file_size_mb} MB) would exceed "
-                        f"the folder size limit of {self.FOLDER_SIZE_LIMIT_MB} MB. "
-                        f"Current folder size: {folder_size_mb} MB."
+                        f"Adding file {image_meta.url} ({file_size_mb} MB) would "
+                        f"exceed the folder size limit of {self.FOLDER_SIZE_LIMIT_MB} "
+                        f" MB. Current folder size: {folder_size_mb} MB."
                     )
                     break
 
@@ -76,6 +80,11 @@ class Helper:
                     image_meta.url, image_meta.author
                 )
                 full_local_path = self.save_dir / filename
+
+                if full_local_path.exists():
+                    self.logger.info("A copy is found. Skipping...")
+                    continue
+
                 local_paths.append(str(full_local_path))
 
                 with full_local_path.open("wb") as f:
@@ -125,3 +134,6 @@ class Helper:
         json_content = self.config_file.read_text()
         config_data: ConfigData = json.loads(json_content)
         return config_data["current_tumblr_blogs"]
+
+    def convert_bytes_to_mb(self, size_in_bytes: int) -> float:
+        return round(size_in_bytes / (1024 * 1024), 2)
