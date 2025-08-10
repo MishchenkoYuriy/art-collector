@@ -3,7 +3,7 @@ import re
 
 import requests
 from dotenv import load_dotenv
-from helper import Helper
+from helper import Helper, ImageMetadata
 from requests_oauthlib import OAuth1
 
 # TODO: find method to get oauth_token
@@ -35,8 +35,8 @@ class TumblrCollector:
         followed_blog_names: list[str] = [blog["name"] for blog in followed_blogs]
         return followed_blog_names
 
-    def get_image_urls_by_blog(self, blog_name: str) -> list[str]:
-        image_urls: list[str] = []
+    def get_image_urls_by_blog(self, blog_name: str) -> list[ImageMetadata]:
+        image_metadata_list: list[ImageMetadata] = []
         last_runtime = self.helper.get_last_runtime_in_unix()
         resp = requests.get(
             f"https://api.tumblr.com/v2/blog/{blog_name}.tumblr.com/posts",
@@ -51,9 +51,9 @@ class TumblrCollector:
                 post["trail"][0]["content_raw"]
             )
             if image_url:  # if image is found
-                image_urls.append(image_url)
+                image_metadata_list.append(ImageMetadata(url=image_url, author=blog_name))
 
-        return image_urls
+        return image_metadata_list
 
     def extract_image_url_from_html(self, html: str) -> str | None:
         srcset_match = re.search(r'srcset="([^"]+)"', html)

@@ -1,9 +1,16 @@
 import datetime
 import json
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 import requests
+
+
+@dataclass
+class ImageMetadata:
+    url: str
+    author: str
 
 
 class Helper:
@@ -20,23 +27,23 @@ class Helper:
         )
         self.logger = logging.getLogger(__name__)
 
-    def download_from_urls(self, urls: list[str]) -> list[str]:
+    def download_from_urls(self, image_metadata_list: list[ImageMetadata]) -> list[str]:
         local_paths: list[str] = []
-        for url in urls:
+        for image_meta in image_metadata_list:
             try:
-                resp = requests.get(url, stream=True, timeout=10)
+                resp = requests.get(image_meta.url, stream=True, timeout=10)
                 resp.raise_for_status()
 
                 file_size: str | None = resp.headers.get("content-length", None)
                 if file_size and int(file_size) > self.SIZE_LIMIT_BYTES:
                     size_in_mb = round(int(file_size) / (1024 * 1024), 2)
                     self.logger.warning(
-                        f"The file {url} exceeded the {self.SIZE_LIMIT_MB} MB limit. "
+                        f"The file {image_meta.url} exceeded the {self.SIZE_LIMIT_MB} MB limit. "
                         f"The file size is {size_in_mb} MB. Skipping..."
                     )
                     continue
 
-                filename = self.get_filename(url)
+                filename = self.get_filename_with_author(image_meta.url, image_meta.author)
                 full_local_path = self.save_dir / filename
                 local_paths.append(str(full_local_path))
 
@@ -46,10 +53,15 @@ class Helper:
 
             except requests.exceptions.RequestException as e:
                 self.logger.warning(
-                    f"Failed to download {url}. Error: {e}. Skipping...\n"
+                    f"Failed to download {image_meta.url}. Error: {e}. Skipping...\n"
                 )
 
         return local_paths
+
+    def get_filename_with_author(self, url: str, author: str) -> str:
+        original_filename = Path(url).name
+        # Prepend author name to filename
+        return f"{author}_{original_filename}"
 
     def get_filename(self, url: str) -> str:
         return Path(url).name
