@@ -16,6 +16,7 @@ if __name__ == "__main__":
             all_image_urls.extend(image_urls)
             break  ## TODO: remove
 
+        helper.clean_temp_directory()
         local_paths = helper.download_from_urls(all_image_urls)
         mega.upload_local_files(local_paths)
 
