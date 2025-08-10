@@ -3,8 +3,14 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypedDict
 
 import requests
+
+
+class ConfigData(TypedDict):
+    last_runtime: str
+    current_tumblr_blogs: list[str]
 
 
 @dataclass
@@ -79,11 +85,19 @@ class Helper:
 
     def get_last_runtime_in_unix(self) -> int:
         json_content = self.config_file.read_text()
-        config_data: dict[str, str] = json.loads(json_content)
+        config_data: ConfigData = json.loads(json_content)
         last_runtime = datetime.datetime.fromisoformat(config_data["last_runtime"])
         return int(last_runtime.timestamp())
 
-    def save_now_as_runtime(self) -> None:
-        config_data = {"last_runtime": datetime.datetime.now(datetime.UTC).isoformat()}
+    def save_runtime_config(self, followed_blogs: list[str]) -> None:
+        config_data = {
+            "last_runtime": datetime.datetime.now(datetime.UTC).isoformat(),
+            "current_tumblr_blogs": followed_blogs,
+        }
         json_content = json.dumps(config_data, indent=2)
         self.config_file.write_text(json_content)
+
+    def get_current_tumblr_blogs(self) -> list[str]:
+        json_content = self.config_file.read_text()
+        config_data: ConfigData = json.loads(json_content)
+        return config_data["current_tumblr_blogs"]

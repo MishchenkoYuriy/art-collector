@@ -17,7 +17,7 @@ if __name__ == "__main__":
 
         local_paths = helper.download_from_urls(all_image_metadata)
         mega.upload_local_files(local_paths)
-        helper.save_now_as_runtime()
+        helper.save_runtime_config(followed_blog_names)
 
     finally:
         helper.clean_temp_directory()
