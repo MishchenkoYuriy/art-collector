@@ -1,8 +1,9 @@
 import logging
 from pathlib import Path
-from urllib.parse import urlparse
 
 import requests
+
+# TODO: add clear temp folder
 
 
 class Helper:
@@ -18,7 +19,8 @@ class Helper:
         )
         self.logger = logging.getLogger(__name__)
 
-    def download_from_urls(self, urls: list[str]) -> None:
+    def download_from_urls(self, urls: list[str]) -> list[str]:
+        local_paths: list[str] = []
         for url in urls:
             try:
                 resp = requests.get(url, stream=True, timeout=10)
@@ -33,8 +35,9 @@ class Helper:
                     )
                     continue
 
-                filename = Path(urlparse(url).path).name
+                filename = self.get_filename(url)
                 full_local_path = self.save_dir / filename
+                local_paths.append(str(full_local_path))
 
                 with full_local_path.open("wb") as f:
                     for chunk in resp.iter_content(chunk_size=8192):
@@ -44,3 +47,8 @@ class Helper:
                 self.logger.warning(
                     f"Failed to download {url}. Error: {e}. Skipping...\n"
                 )
+
+        return local_paths
+
+    def get_filename(self, url: str) -> str:
+        return Path(url).name

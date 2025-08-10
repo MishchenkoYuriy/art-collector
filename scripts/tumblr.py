@@ -20,8 +20,8 @@ class TumblrCollector:
     def __init__(self) -> None:
         load_dotenv()
         self.oauth = OAuth1(
-            client_key=os.getenv("TUMBLR_COSTOMER_KEY"),
-            client_secret=os.getenv("TUMBLR_COSTOMER_SECRET"),
+            client_key=os.getenv("TUMBLR_CONSUMER_KEY"),
+            client_secret=os.getenv("TUMBLR_CONSUMER_SECRET"),
             resource_owner_key=os.getenv("TUMBLR_OAUTH_TOKEN"),
             resource_owner_secret=os.getenv("TUMBLR_OAUTH_SECRET"),
         )
