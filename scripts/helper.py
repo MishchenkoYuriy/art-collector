@@ -38,12 +38,15 @@ class Helper:
                 if file_size and int(file_size) > self.SIZE_LIMIT_BYTES:
                     size_in_mb = round(int(file_size) / (1024 * 1024), 2)
                     self.logger.warning(
-                        f"The file {image_meta.url} exceeded the {self.SIZE_LIMIT_MB} MB limit. "
+                        f"The file {image_meta.url} exceeded the "
+                        f"{self.SIZE_LIMIT_MB} MB limit. "
                         f"The file size is {size_in_mb} MB. Skipping..."
                     )
                     continue
 
-                filename = self.get_filename_with_author(image_meta.url, image_meta.author)
+                filename = self.get_filename_with_author(
+                    image_meta.url, image_meta.author
+                )
                 full_local_path = self.save_dir / filename
                 local_paths.append(str(full_local_path))
 

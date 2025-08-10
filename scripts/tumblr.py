@@ -51,7 +51,9 @@ class TumblrCollector:
                 post["trail"][0]["content_raw"]
             )
             if image_url:  # if image is found
-                image_metadata_list.append(ImageMetadata(url=image_url, author=blog_name))
+                image_metadata_list.append(
+                    ImageMetadata(url=image_url, author=blog_name)
+                )
 
         return image_metadata_list
 
