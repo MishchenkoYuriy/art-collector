@@ -19,6 +19,7 @@ from requests_oauthlib import OAuth1
 class TumblrCollector:
     def __init__(self) -> None:
         load_dotenv()
+        self.POST_LIMIT = 50
         self.helper = Helper()
         self.oauth = OAuth1(
             client_key=os.getenv("TUMBLR_CONSUMER_KEY"),
@@ -37,11 +38,23 @@ class TumblrCollector:
 
     def get_image_urls_by_blog(self, blog_name: str) -> list[ImageMetadata]:
         image_metadata_list: list[ImageMetadata] = []
-        last_runtime = self.helper.get_last_runtime_in_unix()
+        current_tumblr_blogs = self.helper.get_current_tumblr_blogs()
+        
+        is_first_run = len(current_tumblr_blogs) == 0
+        is_new_blog = blog_name not in current_tumblr_blogs
+        params = {}
+        
+        if is_first_run or is_new_blog:
+            # Don't use 'after' parameter for the first run or new blogs
+            params["limit"] = self.POST_LIMIT
+        else:
+            last_runtime = self.helper.get_last_runtime_in_unix()
+            params["after"] = last_runtime
+        
         resp = requests.get(
             f"https://api.tumblr.com/v2/blog/{blog_name}.tumblr.com/posts",
             auth=self.oauth,
-            params={"after": last_runtime},
+            params=params,
             timeout=10,
         )
         posts = resp.json()["response"]["posts"]

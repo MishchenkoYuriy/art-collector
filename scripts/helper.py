@@ -90,3 +90,8 @@ class Helper:
         }
         json_content = json.dumps(config_data, indent=2)
         self.config_file.write_text(json_content)
+
+    def get_current_tumblr_blogs(self) -> list[str]:
+        json_content = self.config_file.read_text()
+        config_data: dict[str, str] = json.loads(json_content)
+        return config_data["current_tumblr_blogs"]
