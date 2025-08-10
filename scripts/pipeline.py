@@ -14,11 +14,11 @@ if __name__ == "__main__":
         for blog_name in followed_blog_names:
             image_urls = tumblr.get_image_urls_by_blog(blog_name)
             all_image_urls.extend(image_urls)
-            break  ## TODO: remove
 
-        helper.clean_temp_directory()
         local_paths = helper.download_from_urls(all_image_urls)
         mega.upload_local_files(local_paths)
+        helper.save_now_as_runtime()
 
     finally:
+        helper.clean_temp_directory()
         mega.logout()
