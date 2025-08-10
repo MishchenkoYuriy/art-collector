@@ -52,3 +52,11 @@ class Helper:
 
     def get_filename(self, url: str) -> str:
         return Path(url).name
+
+    def clean_temp_directory(self) -> None:
+        for file_path in self.save_dir.iterdir():
+            if file_path.name == ".gitkeep":
+                continue
+
+            if file_path.is_file():
+                file_path.unlink()
