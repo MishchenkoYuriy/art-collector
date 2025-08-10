@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TypedDict
@@ -23,8 +24,10 @@ class Helper:
     def __init__(self) -> None:
         self.save_dir = Path("temp")
         self.config_file = Path(__file__).resolve().parent.parent / "config.json"
-        self.SIZE_LIMIT_MB = 10
-        self.SIZE_LIMIT_BYTES = self.SIZE_LIMIT_MB * 1024 * 1024
+        self.FILE_SIZE_LIMIT_MB = int(os.getenv("LOCAL_FILE_SIZE_LIMIT_MB"))
+        self.FILE_SIZE_LIMIT_BYTES = self.FILE_SIZE_LIMIT_MB * 1024 * 1024
+        self.FOLDER_SIZE_LIMIT_MB = int(os.getenv("LOCAL_FOLDER_SIZE_LIMIT_MB"))
+        self.FOLDER_SIZE_LIMIT_BYTES = self.FOLDER_SIZE_LIMIT_MB * 1024 * 1024
 
         logging.basicConfig(
             level=logging.INFO,
@@ -35,20 +38,39 @@ class Helper:
 
     def download_from_urls(self, image_metadata_list: list[ImageMetadata]) -> list[str]:
         local_paths: list[str] = []
+        local_folder_size = 0  # track folder size incrementally in bytes
         for image_meta in image_metadata_list:
             try:
                 resp = requests.get(image_meta.url, stream=True, timeout=10)
                 resp.raise_for_status()
 
-                file_size: str | None = resp.headers.get("content-length", None)
-                if file_size and int(file_size) > self.SIZE_LIMIT_BYTES:
-                    size_in_mb = round(int(file_size) / (1024 * 1024), 2)
+                file_size: int | None = int(resp.headers.get("content-length", None)) if resp.headers.get("content-length", None) else None
+                if file_size is None:
+                    self.logger.warning(
+                        f"Could not determine file size for {image_meta.url}. "
+                        f"Content-Length header is missing. Skipping..."
+                    )
+                    continue
+                
+                if file_size > self.FILE_SIZE_LIMIT_BYTES:
+                    size_in_mb = round(file_size / (1024 * 1024), 2)
                     self.logger.warning(
                         f"The file {image_meta.url} exceeded the "
-                        f"{self.SIZE_LIMIT_MB} MB limit. "
+                        f"{self.FILE_SIZE_LIMIT_MB} MB limit. "
                         f"The file size is {size_in_mb} MB. Skipping..."
                     )
                     continue
+
+                # Check if adding this file would exceed folder size limit
+                if local_folder_size + file_size > self.FOLDER_SIZE_LIMIT_BYTES:
+                    folder_size_mb = round(local_folder_size / (1024 * 1024), 2)
+                    file_size_mb = round(file_size / (1024 * 1024), 2)
+                    self.logger.warning(
+                        f"Adding file {image_meta.url} ({file_size_mb} MB) would exceed "
+                        f"the folder size limit of {self.FOLDER_SIZE_LIMIT_MB} MB. "
+                        f"Current folder size: {folder_size_mb} MB."
+                    )
+                    break
 
                 filename = self.get_filename_with_author(
                     image_meta.url, image_meta.author
@@ -59,6 +81,8 @@ class Helper:
                 with full_local_path.open("wb") as f:
                     for chunk in resp.iter_content(chunk_size=8192):
                         f.write(chunk)
+
+                local_folder_size += file_size
 
             except requests.exceptions.RequestException as e:
                 self.logger.warning(

@@ -19,7 +19,7 @@ from requests_oauthlib import OAuth1
 class TumblrCollector:
     def __init__(self) -> None:
         load_dotenv()
-        self.POST_LIMIT = 50
+        self.POST_LIMIT = int(os.getenv("TUMBLR_POST_LIMIT"))
         self.helper = Helper()
         self.oauth = OAuth1(
             client_key=os.getenv("TUMBLR_CONSUMER_KEY"),
