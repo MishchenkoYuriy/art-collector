@@ -3,6 +3,7 @@ import re
 
 import requests
 from dotenv import load_dotenv
+from helper import Helper
 from requests_oauthlib import OAuth1
 
 # TODO: find method to get oauth_token
@@ -10,7 +11,6 @@ from requests_oauthlib import OAuth1
 # TODO: look into type, date, post_url attibutes of the post
 # TODO: look into https://www.tumblr.com/docs/en/api/v2#postsdraft--retrieve-draft-posts
 # TODO: look into https://www.tumblr.com/docs/en/api/v2#postsqueue--retrieve-queued-posts
-# TODO: add `before` query parameters to get_image_urls_by_blog
 
 # https://github.com/tumblr/pytumblr
 # https://api.tumblr.com/v2/user/info
@@ -19,6 +19,7 @@ from requests_oauthlib import OAuth1
 class TumblrCollector:
     def __init__(self) -> None:
         load_dotenv()
+        self.helper = Helper()
         self.oauth = OAuth1(
             client_key=os.getenv("TUMBLR_CONSUMER_KEY"),
             client_secret=os.getenv("TUMBLR_CONSUMER_SECRET"),
@@ -36,19 +37,16 @@ class TumblrCollector:
 
     def get_image_urls_by_blog(self, blog_name: str) -> list[str]:
         image_urls: list[str] = []
+        last_runtime = self.helper.get_last_runtime_in_unix()
         resp = requests.get(
             f"https://api.tumblr.com/v2/blog/{blog_name}.tumblr.com/posts",
             auth=self.oauth,
+            params={"after": last_runtime},
             timeout=10,
         )
         posts = resp.json()["response"]["posts"]
-        limit = 0
 
         for post in posts:
-            if limit > 2:  ## TODO: remove
-                break
-            limit = limit + 1
-
             image_url = self.extract_image_url_from_html(
                 post["trail"][0]["content_raw"]
             )

@@ -1,14 +1,15 @@
+import datetime
+import json
 import logging
 from pathlib import Path
 
 import requests
 
-# TODO: add clear temp folder
-
 
 class Helper:
     def __init__(self) -> None:
         self.save_dir = Path("temp")
+        self.config_file = Path(__file__).resolve().parent.parent / "config.json"
         self.SIZE_LIMIT_MB = 10
         self.SIZE_LIMIT_BYTES = self.SIZE_LIMIT_MB * 1024 * 1024
 
@@ -60,3 +61,14 @@ class Helper:
 
             if file_path.is_file():
                 file_path.unlink()
+
+    def get_last_runtime_in_unix(self) -> int:
+        json_content = self.config_file.read_text()
+        config_data: dict[str, str] = json.loads(json_content)
+        last_runtime = datetime.datetime.fromisoformat(config_data["last_runtime"])
+        return int(last_runtime.timestamp())
+
+    def save_now_as_runtime(self) -> None:
+        config_data = {"last_runtime": datetime.datetime.now(datetime.UTC).isoformat()}
+        json_content = json.dumps(config_data, indent=2)
+        self.config_file.write_text(json_content)
