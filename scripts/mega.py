@@ -4,6 +4,7 @@ import subprocess
 from dotenv import load_dotenv
 from helper import Helper
 
+# https://github.com/meganz/MEGAcmd/blob/master/UserGuide.md
 
 class MegaSaver:
     def __init__(self) -> None:
