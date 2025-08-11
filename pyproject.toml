@@ -30,6 +30,7 @@ ignore = [
     "PLR2004", # TODO: remove after release
     "S603",
     "S607",
+    "FBT001",
 ]
 
 [tool.ruff.lint.per-file-ignores]
