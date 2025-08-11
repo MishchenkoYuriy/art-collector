@@ -49,22 +49,28 @@ class TumblrCollector:
         return followed_blog_names
 
     def get_files_from_blogs(self, current_blog_names: list[str]) -> list[FileMetadata]:
-        files: list[FileMetadata] = []
+        # url as a key handles duplicates from different posts
+        files: dict[str, FileMetadata] = {}
         previous_tumblr_blogs = self.helper.get_previous_run_tumblr_blogs()
         is_first_run = len(previous_tumblr_blogs) == 0
 
         for blog_name in current_blog_names:
-            blog_files = self._get_files_from_blog(
-                blog_name, is_first_run, previous_tumblr_blogs
+            files = self._populate_files_from_blog(
+                files=files,
+                blog_name=blog_name,
+                is_first_run=is_first_run,
+                previous_tumblr_blogs=previous_tumblr_blogs,
             )
-            files.extend(blog_files)
 
-        return files
+        return list(files.values())
 
-    def _get_files_from_blog(
-        self, blog_name: str, is_first_run: bool, previous_tumblr_blogs: list[str]
-    ) -> list[FileMetadata]:
-        blog_files: list[FileMetadata] = []
+    def _populate_files_from_blog(
+        self,
+        files: dict[str, FileMetadata],
+        blog_name: str,
+        is_first_run: bool,
+        previous_tumblr_blogs: list[str],
+    ) -> dict[str, FileMetadata]:
         params = {}
         is_new_blog = blog_name not in previous_tumblr_blogs
 
@@ -86,37 +92,30 @@ class TumblrCollector:
         for post in posts:
             match post["type"]:
                 case "text":
-                    post_files = self._get_files_from_text_post(
-                        post_html=post,
-                        blog_name=blog_name,
-                        blog_files_cnt=len(blog_files),
+                    files = self._populate_files_from_text_post(
+                        files=files, post_html=post, blog_name=blog_name
                     )
-                    blog_files.extend(post_files)
 
                 case "photo":
-                    post_files = self._get_files_from_photo_post(
-                        post_html=post,
-                        blog_name=blog_name,
-                        blog_files_cnt=len(blog_files),
+                    files = self._populate_files_from_photo_post(
+                        files=files, post_html=post, blog_name=blog_name
                     )
-                    blog_files.extend(post_files)
 
                 case _:
                     self.logger.info(f"Not supported post type: {post['type']}")
 
-            if len(blog_files) >= self.FILE_LIMIT_PER_BLOG:
+            if len(files) >= self.FILE_LIMIT_PER_BLOG:
                 self.logger.info(
                     "The FILE_LIMIT_PER_BLOG is reached in `_get_files_from_blog`, "
-                    f"len(blog_files) = {len(blog_files)}"
+                    f"len(files) = {len(files)}"
                 )
-                return blog_files
+                return files
 
-        return blog_files
+        return files
 
-    def _get_files_from_text_post(
-        self, post_html: dict[str, Any], blog_name: str, blog_files_cnt: int
-    ) -> list[FileMetadata]:
-        post_files: list[FileMetadata] = []
+    def _populate_files_from_text_post(
+        self, files: dict[str, FileMetadata], post_html: dict[str, Any], blog_name: str
+    ) -> dict[str, FileMetadata]:
         content_raw: str = post_html["trail"][0]["content_raw"]
 
         # Split content_raw as a post can have multiple images
@@ -132,37 +131,34 @@ class TumblrCollector:
                 )
 
                 if file:
-                    post_files.append(file)
+                    files[file.url] = file
 
-                if blog_files_cnt + len(post_files) >= self.FILE_LIMIT_PER_BLOG:
+                if len(files) >= self.FILE_LIMIT_PER_BLOG:
                     self.logger.info(
                         "The FILE_LIMIT_PER_BLOG is reached in "
                         "`_get_files_from_text_post`, "
-                        f"blog_files_cnt = {blog_files_cnt}, "
-                        f"len(post_files) = {len(post_files)}"
+                        f"len(files) = {len(files)}"
                     )
-                    return post_files
+                    return files
 
-        return post_files
+        return files
 
-    def _get_files_from_photo_post(
-        self, post_html: dict[str, Any], blog_name: str, blog_files_cnt: int
-    ) -> list[FileMetadata]:
-        post_files: list[FileMetadata] = []
+    def _populate_files_from_photo_post(
+        self, files: dict[str, FileMetadata], post_html: dict[str, Any], blog_name: str
+    ) -> dict[str, FileMetadata]:
         # Get the photo with the highest resolution
         url: str = post_html["photos"][0]["original_size"]["url"]
 
         file = self.file_meta.populate_file_metadata(url=url, author=blog_name)
 
         if file:
-            post_files.append(file)
+            files[file.url] = file
 
-        if blog_files_cnt + len(post_files) >= self.FILE_LIMIT_PER_BLOG:
+        if len(files) >= self.FILE_LIMIT_PER_BLOG:
             self.logger.info(
                 "The FILE_LIMIT_PER_BLOG is reached in `_get_files_from_photo_post`, "
-                f"blog_files_cnt = {blog_files_cnt}, "
-                f"len(post_files) = {len(post_files)}"
+                f"len(files) = {len(files)}"
             )
-            return post_files
+            return files
 
-        return post_files
+        return files
