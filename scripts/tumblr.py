@@ -1,6 +1,8 @@
+import logging
 import os
 import re
 from pathlib import Path
+from typing import Any
 
 import requests
 from dotenv import load_dotenv
@@ -30,6 +32,13 @@ class TumblrCollector:
             resource_owner_secret=os.getenv("TUMBLR_OAUTH_SECRET"),
         )
         self.url_pattern = re.compile(r"\s*(https?://[^\s]+)\s+([0-9]+)w\s*")
+
+        logging.basicConfig(
+            level=logging.INFO,
+            format="[%(asctime)s]{%(filename)s:%(lineno)d}%(levelname)s - %(message)s",
+            filename="logs/tumblr.log",
+        )
+        self.logger = logging.getLogger(__name__)
 
     def get_followed_blogs(self) -> list[str]:
         resp = requests.get(
@@ -75,24 +84,85 @@ class TumblrCollector:
         posts = resp.json()["response"]["posts"]
 
         for post in posts:
-            content_raw = post["trail"][0]["content_raw"]
-
-            # Split content_raw as a post can have multiple images
-            srcset_matches = re.findall(r'srcset="([^"]+)"', content_raw)
-            if srcset_matches:
-                for srcset_content in srcset_matches:
-                    file_candidates = srcset_content.split(",")
-                    # Get the file with the highest resolution
-                    last_candidate_url = file_candidates[-1].split()[0]
-
-                    file = self.file_meta.populate_file_metadata(
-                        url=last_candidate_url, author=blog_name
+            match post["type"]:
+                case "text":
+                    post_files = self._get_files_from_text_post(
+                        post_html=post,
+                        blog_name=blog_name,
+                        blog_files_cnt=len(blog_files),
                     )
+                    blog_files.extend(post_files)
 
-                    if file:
-                        blog_files.append(file)
+                case "photo":
+                    post_files = self._get_files_from_photo_post(
+                        post_html=post,
+                        blog_name=blog_name,
+                        blog_files_cnt=len(blog_files),
+                    )
+                    blog_files.extend(post_files)
 
-                    if len(blog_files) == self.FILE_LIMIT_PER_BLOG:
-                        return blog_files
+                case _:
+                    self.logger.info(f"Not supported post type: {post['type']}")
+
+            if len(blog_files) >= self.FILE_LIMIT_PER_BLOG:
+                self.logger.info(
+                    "The FILE_LIMIT_PER_BLOG is reached in `_get_files_from_blog`, "
+                    f"len(blog_files) = {len(blog_files)}"
+                )
+                return blog_files
 
         return blog_files
+
+    def _get_files_from_text_post(
+        self, post_html: dict[str, Any], blog_name: str, blog_files_cnt: int
+    ) -> list[FileMetadata]:
+        post_files: list[FileMetadata] = []
+        content_raw: str = post_html["trail"][0]["content_raw"]
+
+        # Split content_raw as a post can have multiple images
+        srcset_matches = re.findall(r'srcset="([^"]+)"', content_raw)
+        if srcset_matches:
+            for srcset_content in srcset_matches:
+                file_candidates = srcset_content.split(",")
+                # Get the file with the highest resolution
+                last_candidate_url = file_candidates[-1].split()[0]
+
+                file = self.file_meta.populate_file_metadata(
+                    url=last_candidate_url, author=blog_name
+                )
+
+                if file:
+                    post_files.append(file)
+
+                if blog_files_cnt + len(post_files) >= self.FILE_LIMIT_PER_BLOG:
+                    self.logger.info(
+                        "The FILE_LIMIT_PER_BLOG is reached in "
+                        "`_get_files_from_text_post`, "
+                        f"blog_files_cnt = {blog_files_cnt}, "
+                        f"len(post_files) = {len(post_files)}"
+                    )
+                    return post_files
+
+        return post_files
+
+    def _get_files_from_photo_post(
+        self, post_html: dict[str, Any], blog_name: str, blog_files_cnt: int
+    ) -> list[FileMetadata]:
+        post_files: list[FileMetadata] = []
+        # Get the photo with the highest resolution
+        url: str = post_html["photos"][0]["original_size"]["url"]
+
+        file = self.file_meta.populate_file_metadata(url=url, author=blog_name)
+
+        if file:
+            post_files.append(file)
+
+        if blog_files_cnt + len(post_files) >= self.FILE_LIMIT_PER_BLOG:
+            self.logger.info(
+                "The FILE_LIMIT_PER_BLOG is reached in `_get_files_from_photo_post`, "
+                f"blog_files_cnt = {blog_files_cnt}, "
+                f"len(post_files) = {len(post_files)}"
+            )
+            return post_files
+
+        return post_files
