@@ -1,9 +1,10 @@
-import os
-import subprocess
-import re
 import logging
+import os
+import re
+import subprocess
 
 from dotenv import load_dotenv
+from file_metadata import FileMetadata
 from helper import Helper
 
 # https://github.com/meganz/MEGAcmd/blob/master/UserGuide.md
@@ -65,34 +66,30 @@ class MegaSaver:
         command = ["mega-du", self.upload_path]
         result = subprocess.run(command, capture_output=True, text=True, check=True)
         output_string = result.stdout
-        match = re.search(r'\d+', output_string)
+        match = re.search(r"\d+", output_string)
 
         if match:
-            folder_size = int(match.group(0))
-            return folder_size
-        else:
-            return 0
+            return int(match.group(0))
+        return 0
 
-    def upload_local_files(self, local_files: list[str]) -> None:
+    def upload_local_files(self, files: list[FileMetadata]) -> None:
         mega_folder_size = self.get_mega_folder_size()
-        
-        for file_path in local_files:
+
+        for file in files:
             # Check if adding this file would exceed folder size limit
-            file_size = os.path.getsize(file_path)
-            if mega_folder_size + file_size > self.FOLDER_SIZE_LIMIT_BYTES:
+            if mega_folder_size + file.size > self.FOLDER_SIZE_LIMIT_BYTES:
                 self.logger.warning(
-                    f"Adding file {file_path} ({file_size} MB) would "
+                    f"Adding file {file.url} ({file.size} MB) would "
                     f"exceed folder size limit of {self.FOLDER_SIZE_LIMIT_MB} MB."
                 )
                 break
-                
-            filename = self.helper.get_filename(file_path)
+
             command = [
                 "mega-put",
                 "-c",
-                file_path,
-                f"{self.upload_path}/{filename}",
+                str(file.local_path),
+                str(file.upload_path),
             ]  # -c	Creates remote folder destination in case of not existing
             subprocess.run(command, check=True)
 
-            mega_folder_size += file_size
+            mega_folder_size += file.size
