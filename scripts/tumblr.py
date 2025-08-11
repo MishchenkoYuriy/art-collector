@@ -21,7 +21,7 @@ class TumblrCollector:
     def __init__(self) -> None:
         load_dotenv()
         self.config_file = Path(__file__).resolve().parent.parent / "config.json"
-        self.POST_LIMIT = int(os.getenv("TUMBLR_POST_LIMIT", "50"))
+        self.FILE_LIMIT_PER_BLOG = int(os.getenv("TUMBLR_FILE_LIMIT", "50"))
         self.helper = Helper()
         self.file_meta = FileMetadataHelper()
         self.oauth = OAuth1(
@@ -45,12 +45,13 @@ class TumblrCollector:
         is_first_run = len(previous_tumblr_blogs) == 0
 
         for blog_name in current_blog_names:
+            current_blog_files = 0
             params = {}
             is_new_blog = blog_name not in previous_tumblr_blogs
 
             if is_first_run or is_new_blog:
                 # Don't use 'after' parameter for the first run or new blogs
-                params["limit"] = self.POST_LIMIT
+                pass
             else:
                 last_runtime = self.helper.get_last_runtime_in_unix()
                 params["after"] = last_runtime
@@ -70,5 +71,9 @@ class TumblrCollector:
 
                 if file:
                     files.append(file)
+                    current_blog_files += 1
+
+                if current_blog_files == self.FILE_LIMIT_PER_BLOG:
+                    break
 
         return files
