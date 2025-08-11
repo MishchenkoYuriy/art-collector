@@ -28,7 +28,7 @@ class FileMetadataHelper:
         logging.basicConfig(
             level=logging.INFO,
             format="[%(asctime)s]{%(filename)s:%(lineno)d}%(levelname)s - %(message)s",
-            filename="logs/helper.log",
+            filename="logs/file_metadata.log",
         )
         self.logger = logging.getLogger(__name__)
 
