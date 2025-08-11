@@ -1,7 +1,10 @@
+import logging
 import os
+import re
 import subprocess
 
 from dotenv import load_dotenv
+from file_metadata import FileMetadata
 from helper import Helper
 
 # https://github.com/meganz/MEGAcmd/blob/master/UserGuide.md
@@ -10,12 +13,21 @@ from helper import Helper
 class MegaSaver:
     def __init__(self) -> None:
         load_dotenv()
+        self.FOLDER_SIZE_LIMIT_MB = int(os.getenv("MEGA_FOLDER_SIZE_LIMIT_MB", "1000"))
+        self.FOLDER_SIZE_LIMIT_BYTES = self.FOLDER_SIZE_LIMIT_MB * 1024 * 1024
         self.helper = Helper()
         path_from_env: str | None = os.getenv("MEGA_UPLOAD_PATH")
         if path_from_env:
             self.upload_path = path_from_env.rstrip("/")
         else:
             self.upload_path = "art_collector"
+
+        logging.basicConfig(
+            level=logging.INFO,
+            format="[%(asctime)s]{%(filename)s:%(lineno)d}%(levelname)s - %(message)s",
+            filename="logs/mega.log",
+        )
+        self.logger = logging.getLogger(__name__)
 
     def login(self) -> None:
         email = os.getenv("MEGA_EMAIL")
@@ -50,13 +62,34 @@ class MegaSaver:
     def logout(self) -> None:
         subprocess.run("mega-logout", check=True)
 
-    def upload_local_files(self, local_files: list[str]) -> None:
-        for file_path in local_files:
-            filename = self.helper.get_filename(file_path)
+    def get_mega_folder_size(self) -> int:
+        command = ["mega-du", self.upload_path]
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        output_string = result.stdout
+        match = re.search(r"\d+", output_string)
+
+        if match:
+            return int(match.group(0))
+        return 0
+
+    def upload_local_files(self, files: list[FileMetadata]) -> None:
+        mega_folder_size = self.get_mega_folder_size()
+
+        for file in files:
+            # Check if adding this file would exceed folder size limit
+            if mega_folder_size + file.size > self.FOLDER_SIZE_LIMIT_BYTES:
+                self.logger.warning(
+                    f"Adding file {file.url} ({file.size} MB) would "
+                    f"exceed folder size limit of {self.FOLDER_SIZE_LIMIT_MB} MB."
+                )
+                break
+
             command = [
                 "mega-put",
                 "-c",
-                file_path,
-                f"{self.upload_path}/{filename}",
+                str(file.local_path),
+                str(file.upload_path),
             ]  # -c	Creates remote folder destination in case of not existing
             subprocess.run(command, check=True)
+
+            mega_folder_size += file.size

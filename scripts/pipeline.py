@@ -1,4 +1,4 @@
-from helper import Helper, ImageMetadata
+from helper import Helper
 from mega import MegaSaver
 from tumblr import TumblrCollector
 
@@ -10,13 +10,9 @@ if __name__ == "__main__":
         tumblr = TumblrCollector()
         helper = Helper()
         followed_blog_names = tumblr.get_followed_blogs()
-        all_image_metadata: list[ImageMetadata] = []
-        for blog_name in followed_blog_names:
-            image_metadata = tumblr.get_image_urls_by_blog(blog_name)
-            all_image_metadata.extend(image_metadata)
-
-        local_paths = helper.download_from_urls(all_image_metadata)
-        mega.upload_local_files(local_paths)
+        tumblr_files = tumblr.get_files_from_blogs(followed_blog_names)
+        helper.download_files(tumblr_files)
+        mega.upload_local_files(tumblr_files)
         helper.save_runtime_config(followed_blog_names)
 
     finally:
