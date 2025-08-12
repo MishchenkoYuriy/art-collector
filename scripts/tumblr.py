@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from file_metadata import FileMetadata, FileMetadataHelper
 from helper import Helper
 from requests_oauthlib import OAuth1
+from tumblr_enum import TumblrPostType
 
 # TODO: look into type, date, post_url attibutes of the post
 # TODO: look into https://www.tumblr.com/docs/en/api/v2#postsdraft--retrieve-draft-posts
@@ -44,7 +45,7 @@ class TumblrCollector:
         logging.basicConfig(
             level=logging.INFO,
             format="[%(asctime)s]{%(filename)s:%(lineno)d}%(levelname)s - %(message)s",
-            filename="logs/tumblr.log",
+            filename="logs/art_collector.log",
         )
         self.logger = logging.getLogger(__name__)
 
@@ -148,15 +149,18 @@ class TumblrCollector:
 
             for post in posts:
                 match post["type"]:
-                    case "text":
+                    case TumblrPostType.TEXT.value:
                         files = self._populate_files_from_text_post(
                             files=files, post_html=post, blog_name=blog_name
                         )
 
-                    case "photo":
+                    case TumblrPostType.PHOTO.value:
                         files = self._populate_files_from_photo_post(
                             files=files, post_html=post, blog_name=blog_name
                         )
+
+                    case TumblrPostType.ANSWER.value:
+                        continue  # /posts does not support filtering by multiple types
 
                     case _:
                         self.logger.info(f"Not supported post type: {post['type']}")
