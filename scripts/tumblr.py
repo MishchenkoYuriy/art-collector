@@ -23,6 +23,7 @@ class TumblrCollector:
         load_dotenv()
         self.config_file = Path(__file__).resolve().parent.parent / "config.json"
         self.FILE_LIMIT_PER_BLOG = int(os.getenv("TUMBLR_FILE_LIMIT", "50"))
+        self.COLLECT_VIDEOS = bool(os.getenv("TUMBLR_COLLECT_VIDEOS", "False"))
         self.helper = Helper()
         self.file_meta = FileMetadataHelper()
         self.oauth = OAuth1(
@@ -118,7 +119,7 @@ class TumblrCollector:
     ) -> dict[str, FileMetadata]:
         content_raw: str = post_html["trail"][0]["content_raw"]
 
-        # Split content_raw as a post can have multiple images
+        # Split content_raw as a post can have multiple images/gifs
         srcset_matches = re.findall(r'srcset="([^"]+)"', content_raw)
         if srcset_matches:
             for srcset_content in srcset_matches:
@@ -136,10 +137,30 @@ class TumblrCollector:
                 if len(files) >= self.FILE_LIMIT_PER_BLOG:
                     self.logger.info(
                         "The FILE_LIMIT_PER_BLOG is reached in "
-                        "`_get_files_from_text_post`, "
+                        "`_get_files_from_text_post` (image/gif clause), "
                         f"len(files) = {len(files)}"
                     )
                     return files
+
+        # Some text blogs have videos
+        if self.COLLECT_VIDEOS:
+            srcset_matches = re.findall(r'<source src="([^"]+)"', content_raw)
+            if srcset_matches:
+                for video_url in srcset_matches:
+                    file = self.file_meta.populate_file_metadata(
+                        url=video_url, author=blog_name
+                    )
+
+                    if file:
+                        files[file.url] = file
+
+                    if len(files) >= self.FILE_LIMIT_PER_BLOG:
+                        self.logger.info(
+                            "The FILE_LIMIT_PER_BLOG is reached in "
+                            "`_get_files_from_text_post` (video clause), "
+                            f"len(files) = {len(files)}"
+                        )
+                        return files
 
         return files
 
