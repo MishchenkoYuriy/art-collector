@@ -116,45 +116,63 @@ class TumblrCollector:
         is_first_run: bool,
         previous_tumblr_blogs: list[str],
     ) -> dict[str, FileMetadata]:
-        params = {}
+        offset = 0
         is_new_blog = blog_name not in previous_tumblr_blogs
 
-        if is_first_run or is_new_blog:
-            # Don't use 'after' parameter for the first run or new blogs
-            pass
-        else:
-            last_runtime = self.helper.get_last_runtime_in_unix()
-            params["after"] = last_runtime
+        while True:
+            params = {"limit": self.tumblr_api_limit, "offset": offset}
 
-        resp = requests.get(
-            f"https://api.tumblr.com/v2/blog/{blog_name}.tumblr.com/posts",
-            auth=self.oauth,
-            params=params,
-            timeout=10,
-        )
-        posts = resp.json()["response"]["posts"]
+            if is_first_run or is_new_blog:
+                # Don't use 'after' parameter for the first run or new blogs
+                pass
+            else:
+                last_runtime = self.helper.get_last_runtime_in_unix()
+                params["after"] = last_runtime
 
-        for post in posts:
-            match post["type"]:
-                case "text":
-                    files = self._populate_files_from_text_post(
-                        files=files, post_html=post, blog_name=blog_name
+            resp = requests.get(
+                f"https://api.tumblr.com/v2/blog/{blog_name}.tumblr.com/posts",
+                auth=self.oauth,
+                params=params,
+                timeout=10,
+            )
+            posts = resp.json()["response"]["posts"]
+
+            if not posts:
+                self.logger.warning(f"The end of the blog {blog_name} has been reached")
+                break
+
+            self.logger.info(
+                f"Processing {len(posts)} posts from {blog_name} "
+                f"(offset: {offset}, current files: {len(files)})"
+            )
+
+            for post in posts:
+                match post["type"]:
+                    case "text":
+                        files = self._populate_files_from_text_post(
+                            files=files, post_html=post, blog_name=blog_name
+                        )
+
+                    case "photo":
+                        files = self._populate_files_from_photo_post(
+                            files=files, post_html=post, blog_name=blog_name
+                        )
+
+                    case _:
+                        self.logger.info(f"Not supported post type: {post['type']}")
+
+                if len(files) >= self.FILE_LIMIT_PER_BLOG:
+                    self.logger.info(
+                        "The FILE_LIMIT_PER_BLOG is reached in `_get_files_from_blog`, "
+                        f"len(files) = {len(files)}"
                     )
+                    return files
 
-                case "photo":
-                    files = self._populate_files_from_photo_post(
-                        files=files, post_html=post, blog_name=blog_name
-                    )
+            if len(posts) < self.tumblr_api_limit:
+                self.logger.warning(f"The end of the blog {blog_name} has been reached")
+                break
 
-                case _:
-                    self.logger.info(f"Not supported post type: {post['type']}")
-
-            if len(files) >= self.FILE_LIMIT_PER_BLOG:
-                self.logger.info(
-                    "The FILE_LIMIT_PER_BLOG is reached in `_get_files_from_blog`, "
-                    f"len(files) = {len(files)}"
-                )
-                return files
+            offset += self.tumblr_api_limit
 
         return files
 
