@@ -14,7 +14,7 @@ from requests_oauthlib import OAuth1
 # TODO: look into https://www.tumblr.com/docs/en/api/v2#postsdraft--retrieve-draft-posts
 # TODO: look into https://www.tumblr.com/docs/en/api/v2#postsqueue--retrieve-queued-posts
 
-# https://github.com/tumblr/pytumblr
+# https://www.tumblr.com/docs/en/api/v2
 # https://api.tumblr.com/v2/user/info
 
 
@@ -30,6 +30,7 @@ class TumblrCollector:
             if os.getenv("TUMBLR_BLOGS_TO_IGNORE")
             else set()
         )
+        self.tumblr_api_limit = 20
         self.helper = Helper()
         self.file_meta = FileMetadataHelper()
         self.oauth = OAuth1(
@@ -47,12 +48,41 @@ class TumblrCollector:
         )
         self.logger = logging.getLogger(__name__)
 
-    def get_followed_blogs(self) -> set[str]:
+    def get_current_user_followed_blog_cnt(self) -> int:
         resp = requests.get(
-            "https://api.tumblr.com/v2/user/following", auth=self.oauth, timeout=10
+            "https://api.tumblr.com/v2/user/info", auth=self.oauth, timeout=10
         )
-        followed_blogs = resp.json()["response"]["blogs"]
-        followed_blog_names: set[str] = {blog["name"] for blog in followed_blogs}
+        return int(resp.json()["response"]["user"]["following"])
+
+    def get_followed_blogs(self) -> set[str]:
+        followed_blog_names: set[str] = set()
+        page_blog_names: set[str] = set()
+        offset = 0
+
+        while True:
+            resp = requests.get(
+                "https://api.tumblr.com/v2/user/following",
+                auth=self.oauth,
+                timeout=10,
+                params={"offset": offset, "limit": self.tumblr_api_limit},
+            )
+            page_followed_blogs = resp.json()["response"]["blogs"]
+            page_blog_names = {blog["name"] for blog in page_followed_blogs}
+            followed_blog_names.update(page_blog_names)
+
+            if len(page_blog_names) < self.tumblr_api_limit:  # while "page" is full
+                break
+
+            offset += self.tumblr_api_limit
+
+        followed_blog_cnt = self.get_current_user_followed_blog_cnt()
+        if followed_blog_cnt != len(followed_blog_names):
+            self.logger.warning(
+                "The number of followed blogs from the API does not match, "
+                f"{followed_blog_cnt} from the account info, "
+                f"{len(followed_blog_names)} from over iterating over following."
+            )
+
         return self._filter_blogs(followed_blog_names)
 
     def _filter_blogs(self, blogs: set[str]) -> set[str]:
