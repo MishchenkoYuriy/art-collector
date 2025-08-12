@@ -148,6 +148,10 @@ class TumblrCollector:
             )
 
             for post in posts:
+                is_repost = "parent_post_url" in post
+                if is_repost:
+                    continue
+
                 match post["type"]:
                     case TumblrPostType.TEXT.value:
                         files = self._populate_files_from_text_post(
