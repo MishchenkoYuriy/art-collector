@@ -16,11 +16,7 @@ class MegaSaver:
         self.FOLDER_SIZE_LIMIT_MB = int(os.getenv("MEGA_FOLDER_SIZE_LIMIT_MB", "1000"))
         self.FOLDER_SIZE_LIMIT_BYTES = self.FOLDER_SIZE_LIMIT_MB * 1024 * 1024
         self.helper = Helper()
-        path_from_env: str | None = os.getenv("MEGA_UPLOAD_PATH")
-        if path_from_env:
-            self.upload_path = path_from_env.rstrip("/")
-        else:
-            self.upload_path = "art_collector"
+        self.upload_path: str | None = os.getenv("MEGA_UPLOAD_PATH")
 
         logging.basicConfig(
             level=logging.INFO,
@@ -63,13 +59,23 @@ class MegaSaver:
         subprocess.run("mega-logout", check=True)
 
     def get_mega_folder_size(self) -> int:
-        command = ["mega-du", self.upload_path]
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
-        output_string = result.stdout
-        match = re.search(r"\d+", output_string)
+        if self.upload_path:
+            command = ["mega-du", self.upload_path]
+            try:
+                result = subprocess.run(
+                    command, capture_output=True, text=True, check=True
+                )
+            except subprocess.CalledProcessError as e:
+                if e.returncode == 53:
+                    self.logger.info(f"The path `{self.upload_path}` does not exist.")
+                    return 0
+                raise
 
-        if match:
-            return int(match.group(0))
+            output_string = result.stdout
+            match = re.search(r"\d+", output_string)
+
+            if match:
+                return int(match.group(0))
         return 0
 
     def upload_local_files(self, files: list[FileMetadata]) -> None:

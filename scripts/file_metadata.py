@@ -19,11 +19,7 @@ class FileMetadata:
 class FileMetadataHelper:
     def __init__(self) -> None:
         self.save_dir = Path("temp")
-        path_from_env: str | None = os.getenv("MEGA_UPLOAD_PATH")
-        if path_from_env:
-            self.upload_path = Path(path_from_env.rstrip("/"))
-        else:
-            self.upload_path = Path("art_collector")
+        self.upload_path: str | None = os.getenv("MEGA_UPLOAD_PATH")
         logging.basicConfig(
             level=logging.INFO,
             format="[%(asctime)s]{%(filename)s:%(lineno)d}%(levelname)s - %(message)s",
@@ -34,7 +30,7 @@ class FileMetadataHelper:
     def populate_file_metadata(self, url: str, author: str) -> FileMetadata | None:
         filename = Path(f"{author}_{Path(url).name}")
         local_path = self.save_dir / filename
-        upload_path = self.upload_path / filename
+        upload_path = (self.upload_path or Path()) / filename
 
         resp = requests.head(url, timeout=10)
         resp.raise_for_status()
