@@ -26,7 +26,7 @@ class Helper:
         logging.basicConfig(
             level=logging.INFO,
             format="[%(asctime)s]{%(filename)s:%(lineno)d}%(levelname)s - %(message)s",
-            filename="logs/helper.log",
+            filename="logs/art_collector.log",
         )
         self.logger = logging.getLogger(__name__)
 
