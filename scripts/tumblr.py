@@ -24,6 +24,12 @@ class TumblrCollector:
         self.config_file = Path(__file__).resolve().parent.parent / "config.json"
         self.FILE_LIMIT_PER_BLOG = int(os.getenv("TUMBLR_FILE_LIMIT", "50"))
         self.COLLECT_VIDEOS = bool(os.getenv("TUMBLR_COLLECT_VIDEOS", "False"))
+        self.BLOGS_TO_CRAWL = set(os.getenv("TUMBLR_BLOGS_TO_CRAWL", "all").split(","))
+        self.BLOGS_TO_IGNORE = (
+            set(os.getenv("TUMBLR_BLOGS_TO_IGNORE", "").split(","))
+            if os.getenv("TUMBLR_BLOGS_TO_IGNORE")
+            else set()
+        )
         self.helper = Helper()
         self.file_meta = FileMetadataHelper()
         self.oauth = OAuth1(
@@ -41,15 +47,23 @@ class TumblrCollector:
         )
         self.logger = logging.getLogger(__name__)
 
-    def get_followed_blogs(self) -> list[str]:
+    def get_followed_blogs(self) -> set[str]:
         resp = requests.get(
             "https://api.tumblr.com/v2/user/following", auth=self.oauth, timeout=10
         )
         followed_blogs = resp.json()["response"]["blogs"]
-        followed_blog_names: list[str] = [blog["name"] for blog in followed_blogs]
-        return followed_blog_names
+        followed_blog_names: set[str] = {blog["name"] for blog in followed_blogs}
+        return self._filter_blogs(followed_blog_names)
 
-    def get_files_from_blogs(self, current_blog_names: list[str]) -> list[FileMetadata]:
+    def _filter_blogs(self, blogs: set[str]) -> set[str]:
+        if self.BLOGS_TO_CRAWL == {"all"}:  # noqa: SIM300
+            filtered_blogs = blogs
+        else:
+            filtered_blogs = blogs.intersection(self.BLOGS_TO_CRAWL)
+
+        return filtered_blogs.difference(self.BLOGS_TO_IGNORE)
+
+    def get_files_from_blogs(self, current_blog_names: set[str]) -> list[FileMetadata]:
         # url as a key handles duplicates from different posts
         files: dict[str, FileMetadata] = {}
         previous_tumblr_blogs = self.helper.get_previous_run_tumblr_blogs()
