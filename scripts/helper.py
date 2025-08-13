@@ -16,7 +16,8 @@ class ConfigData(TypedDict):
 
 class Helper:
     def __init__(self) -> None:
-        self.save_dir = Path("temp")
+        self.temp_upload_dir = Path("temp")
+        self.SAVE_TO_MEGA = os.getenv("SAVE_TO_MEGA", "True") == "True"
         self.config_file = Path(__file__).resolve().parent.parent / "config.json"
         self.FILE_SIZE_LIMIT_MB = int(os.getenv("LOCAL_FILE_SIZE_LIMIT_MB", "10"))
         self.FILE_SIZE_LIMIT_BYTES = self.FILE_SIZE_LIMIT_MB * 1024 * 1024
@@ -73,12 +74,13 @@ class Helper:
                 )
 
     def clean_temp_directory(self) -> None:
-        for file_path in self.save_dir.iterdir():
-            if file_path.name == ".gitkeep":
-                continue
+        if self.SAVE_TO_MEGA:
+            for file_path in self.temp_upload_dir.iterdir():
+                if file_path.name == ".gitkeep":
+                    continue
 
-            if file_path.is_file():
-                file_path.unlink()
+                if file_path.is_file():
+                    file_path.unlink()
 
     def get_last_runtime_in_unix(self) -> int:
         json_content = self.config_file.read_text()

@@ -24,7 +24,7 @@ class TumblrCollector:
         load_dotenv()
         self.config_file = Path(__file__).resolve().parent.parent / "config.json"
         self.FILE_LIMIT_PER_BLOG = int(os.getenv("TUMBLR_FILE_LIMIT", "50"))
-        self.COLLECT_VIDEOS = bool(os.getenv("TUMBLR_COLLECT_VIDEOS", "False"))
+        self.COLLECT_VIDEOS = os.getenv("TUMBLR_COLLECT_VIDEOS", "False") == "True"
         self.BLOGS_TO_CRAWL = set(os.getenv("TUMBLR_BLOGS_TO_CRAWL", "all").split(","))
         self.BLOGS_TO_IGNORE = (
             set(os.getenv("TUMBLR_BLOGS_TO_IGNORE", "").split(","))
