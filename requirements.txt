@@ -3,7 +3,7 @@ mypy==1.17.1
 pre-commit==4.2.0
 requests==2.32.4
 requests-oauthlib==2.0.0
-python-dotenv==1.1.1
 pydantic==2.11.7
+pydantic-settings==2.10.1
 types-requests==2.32.4.20250809
 types-requests-oauthlib==2.0.0.20250809

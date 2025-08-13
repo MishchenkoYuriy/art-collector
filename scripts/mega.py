@@ -1,26 +1,15 @@
 import logging
-import os
 import re
 import subprocess
 
-from dotenv import load_dotenv
+from config import settings
 from file_metadata import FileMetadata
-from helper import Helper
 
 # https://github.com/meganz/MEGAcmd/blob/master/UserGuide.md
 
 
 class MegaSaver:
     def __init__(self) -> None:
-        load_dotenv()
-        self.SAVE_TO_MEGA = os.getenv("SAVE_TO_MEGA", "True") == "True"
-        self.FOLDER_SIZE_LIMIT_MB = int(
-            os.getenv("MEGA_FOLDER_SIZE_LIMIT_MB", "1000") or "1000"
-        )
-        self.FOLDER_SIZE_LIMIT_BYTES = self.FOLDER_SIZE_LIMIT_MB * 1024 * 1024
-        self.helper = Helper()
-        self.upload_path: str | None = os.getenv("MEGA_UPLOAD_PATH")
-
         logging.basicConfig(
             level=logging.INFO,
             format="[%(asctime)s]{%(filename)s:%(lineno)d}%(levelname)s - %(message)s",
@@ -29,19 +18,17 @@ class MegaSaver:
         self.logger = logging.getLogger(__name__)
 
     def login(self) -> None:
-        if self.SAVE_TO_MEGA:
-            email = os.getenv("MEGA_EMAIL")
-            password = os.getenv("MEGA_PASSWORD")
-            if not email or not password:
+        if settings.SAVE_TO_MEGA:
+            if not settings.MEGA_EMAIL or not settings.MEGA_PASSWORD:
                 msg = "MEGA_EMAIL and/or MEGA_PASSWORD are not set or are empty."
                 raise ValueError(msg)
 
             auth_code: str | None = (
-                f"--auth-code={os.getenv('MEGA_AUTH_CODE')}"
-                if os.getenv("MEGA_AUTH_CODE")
+                f"--auth-code={settings.MEGA_AUTH_CODE}"
+                if settings.MEGA_AUTH_CODE
                 else None
             )
-            login_command = ["mega-login", email, password]
+            login_command = ["mega-login", settings.MEGA_EMAIL, settings.MEGA_PASSWORD]
 
             if auth_code:  # for two-factor authentication
                 login_command.append(auth_code)
@@ -60,19 +47,21 @@ class MegaSaver:
                     raise
 
     def logout(self) -> None:
-        if self.SAVE_TO_MEGA:
+        if settings.SAVE_TO_MEGA:
             subprocess.run("mega-logout", check=True)
 
     def _get_mega_folder_size(self) -> int:
-        if self.upload_path:
-            command = ["mega-du", self.upload_path]
+        if settings.MEGA_UPLOAD_PATH:
+            command = ["mega-du", settings.MEGA_UPLOAD_PATH]
             try:
                 result = subprocess.run(
                     command, capture_output=True, text=True, check=True
                 )
             except subprocess.CalledProcessError as e:
                 if e.returncode == 53:
-                    self.logger.info(f"The path `{self.upload_path}` does not exist.")
+                    self.logger.info(
+                        f"The path `{settings.MEGA_UPLOAD_PATH}` does not exist."
+                    )
                     return 0
                 raise
 
@@ -84,15 +73,16 @@ class MegaSaver:
         return 0
 
     def upload_local_files(self, files: list[FileMetadata]) -> None:
-        if self.SAVE_TO_MEGA:
+        if settings.SAVE_TO_MEGA:
             mega_folder_size = self._get_mega_folder_size()
 
             for file in files:
                 # Check if adding this file would exceed folder size limit
-                if mega_folder_size + file.size > self.FOLDER_SIZE_LIMIT_BYTES:
+                if mega_folder_size + file.size > settings.MEGA_FOLDER_SIZE_LIMIT_BYTES:
                     self.logger.warning(
                         f"Adding file {file.url} ({file.size} MB) would "
-                        f"exceed folder size limit of {self.FOLDER_SIZE_LIMIT_MB} MB."
+                        "exceed folder size limit of "
+                        f"{settings.MEGA_FOLDER_SIZE_LIMIT_MB} MB."
                     )
                     break
 

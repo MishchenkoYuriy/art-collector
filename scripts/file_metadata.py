@@ -1,8 +1,8 @@
 import logging
-import os
 from pathlib import Path
 
 import requests
+from config import settings
 from pydantic import BaseModel, HttpUrl, PositiveInt
 
 
@@ -16,10 +16,6 @@ class FileMetadata(BaseModel):
 
 class FileMetadataHelper:
     def __init__(self) -> None:
-        self.local_upload_path = Path(os.getenv("LOCAL_UPLOAD_PATH") or "temp")
-        self.local_temp_upload_dir = Path("temp")
-        self.mega_upload_path = Path(os.getenv("MEGA_UPLOAD_PATH", ""))
-        self.SAVE_TO_MEGA = os.getenv("SAVE_TO_MEGA", "True") == "True"
         logging.basicConfig(
             level=logging.INFO,
             format="[%(asctime)s]{%(filename)s:%(lineno)d}%(levelname)s - %(message)s",
@@ -29,13 +25,13 @@ class FileMetadataHelper:
 
     def populate_file_metadata(self, url: HttpUrl, author: str) -> FileMetadata | None:
         filename = Path(f"{author}_{Path(str(url)).name}")
-        if self.SAVE_TO_MEGA:
-            local_path = self.local_temp_upload_dir / filename
+        if settings.SAVE_TO_MEGA:
+            local_path = settings.LOCAL_TEMP_UPLOAD_DIR / filename
         else:
-            local_path = self.local_upload_path / filename
-        mega_path = self.mega_upload_path / filename
+            local_path = settings.LOCAL_UPLOAD_PATH / filename
+        mega_path = settings.MEGA_UPLOAD_PATH / filename
 
-        resp = requests.head(url, timeout=10)
+        resp = requests.head(str(url), timeout=10)
         resp.raise_for_status()
         file_size: int | None = (
             int(resp.headers["content-length"])
