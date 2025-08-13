@@ -1,13 +1,12 @@
 import logging
-import os
 import re
-from pathlib import Path
 from typing import Any
 
 import requests
-from dotenv import load_dotenv
+from config import settings
 from file_metadata import FileMetadata, FileMetadataHelper
 from helper import Helper
+from pydantic import HttpUrl
 from requests_oauthlib import OAuth1
 from tumblr_enum import TumblrPostType
 
@@ -21,27 +20,16 @@ from tumblr_enum import TumblrPostType
 
 class TumblrCollector:
     def __init__(self) -> None:
-        load_dotenv()
-        self.config_file = Path(__file__).resolve().parent.parent / "config.json"
-        self.FILE_LIMIT_PER_BLOG = int(os.getenv("TUMBLR_FILE_LIMIT", "50"))
-        self.COLLECT_VIDEOS = os.getenv("TUMBLR_COLLECT_VIDEOS", "False") == "True"
-        self.BLOGS_TO_CRAWL = set(os.getenv("TUMBLR_BLOGS_TO_CRAWL", "all").split(","))
-        self.BLOGS_TO_IGNORE = (
-            set(os.getenv("TUMBLR_BLOGS_TO_IGNORE", "").split(","))
-            if os.getenv("TUMBLR_BLOGS_TO_IGNORE")
-            else set()
-        )
         self.tumblr_api_limit = 20
+        self.url_pattern = re.compile(r"\s*(https?://[^\s]+)\s+([0-9]+)w\s*")
         self.helper = Helper()
         self.file_meta = FileMetadataHelper()
         self.oauth = OAuth1(
-            client_key=os.getenv("TUMBLR_CONSUMER_KEY"),
-            client_secret=os.getenv("TUMBLR_CONSUMER_SECRET"),
-            resource_owner_key=os.getenv("TUMBLR_OAUTH_TOKEN"),
-            resource_owner_secret=os.getenv("TUMBLR_OAUTH_SECRET"),
+            client_key=settings.TUMBLR_CONSUMER_KEY,
+            client_secret=settings.TUMBLR_CONSUMER_SECRET,
+            resource_owner_key=settings.TUMBLR_OAUTH_TOKEN,
+            resource_owner_secret=settings.TUMBLR_OAUTH_SECRET,
         )
-        self.url_pattern = re.compile(r"\s*(https?://[^\s]+)\s+([0-9]+)w\s*")
-
         logging.basicConfig(
             level=logging.INFO,
             format="[%(asctime)s]{%(filename)s:%(lineno)d}%(levelname)s - %(message)s",
@@ -87,12 +75,12 @@ class TumblrCollector:
         return self._filter_blogs(followed_blog_names)
 
     def _filter_blogs(self, blogs: set[str]) -> set[str]:
-        if self.BLOGS_TO_CRAWL == {"all"}:  # noqa: SIM300
+        if settings.TUMBLR_BLOGS_TO_CRAWL == {"all"}:  # noqa: SIM300
             filtered_blogs = blogs
         else:
-            filtered_blogs = blogs.intersection(self.BLOGS_TO_CRAWL)
+            filtered_blogs = blogs.intersection(settings.TUMBLR_BLOGS_TO_CRAWL)
 
-        return filtered_blogs.difference(self.BLOGS_TO_IGNORE)
+        return filtered_blogs.difference(settings.TUMBLR_BLOGS_TO_IGNORE)
 
     def get_files_from_blogs(self, current_blog_names: set[str]) -> list[FileMetadata]:
         # url as a key handles duplicates from different posts
@@ -178,9 +166,12 @@ class TumblrCollector:
                     case _:
                         self.logger.info(f"Not supported post type: {post['type']}")
 
-                if len(files) - previous_blog_files_cnt >= self.FILE_LIMIT_PER_BLOG:
+                if (
+                    len(files) - previous_blog_files_cnt
+                    >= settings.TUMBLR_FILE_LIMIT_PER_BLOG
+                ):
                     self.logger.info(
-                        "The FILE_LIMIT_PER_BLOG is reached, "
+                        "The TUMBLR_FILE_LIMIT_PER_BLOG is reached, "
                         f"{blog_name}'s files: {len(files) - previous_blog_files_cnt}, "
                         f"current total files: {len(files)})"
                     )
@@ -209,7 +200,7 @@ class TumblrCollector:
             for srcset_content in srcset_matches:
                 file_candidates = srcset_content.split(",")
                 # Get the file with the highest resolution
-                last_candidate_url = file_candidates[-1].split()[0]
+                last_candidate_url = HttpUrl(file_candidates[-1].split()[0])
 
                 file = self.file_meta.populate_file_metadata(
                     url=last_candidate_url, author=blog_name
@@ -218,11 +209,14 @@ class TumblrCollector:
                 if file:
                     files[file.url] = file
 
-                if len(files) - previous_blog_files_cnt >= self.FILE_LIMIT_PER_BLOG:
+                if (
+                    len(files) - previous_blog_files_cnt
+                    >= settings.TUMBLR_FILE_LIMIT_PER_BLOG
+                ):
                     return files
 
         # Some text blogs have videos
-        if self.COLLECT_VIDEOS:
+        if settings.TUMBLR_COLLECT_VIDEOS:
             srcset_matches = re.findall(r'<source src="([^"]+)"', content_raw)
             if srcset_matches:
                 for video_url in srcset_matches:
@@ -233,7 +227,10 @@ class TumblrCollector:
                     if file:
                         files[file.url] = file
 
-                    if len(files) - previous_blog_files_cnt >= self.FILE_LIMIT_PER_BLOG:
+                    if (
+                        len(files) - previous_blog_files_cnt
+                        >= settings.TUMBLR_FILE_LIMIT_PER_BLOG
+                    ):
                         return files
 
         return files
@@ -253,7 +250,7 @@ class TumblrCollector:
         if file:
             files[file.url] = file
 
-        if len(files) - previous_blog_files_cnt >= self.FILE_LIMIT_PER_BLOG:
+        if len(files) - previous_blog_files_cnt >= settings.TUMBLR_FILE_LIMIT_PER_BLOG:
             return files
 
         return files
