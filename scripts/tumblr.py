@@ -117,6 +117,7 @@ class TumblrCollector:
         is_first_run: bool,
         previous_tumblr_blogs: list[str],
     ) -> dict[str, FileMetadata]:
+        previous_blog_files_cnt = len(files)
         offset = 0
         is_new_blog = blog_name not in previous_tumblr_blogs
 
@@ -144,7 +145,9 @@ class TumblrCollector:
 
             self.logger.info(
                 f"Processing {len(posts)} posts from {blog_name} "
-                f"(offset: {offset}, current files: {len(files)})"
+                f"(offset: {offset}, "
+                f"{blog_name} files: {previous_blog_files_cnt - len(files)}, "
+                f"current total files: {len(files)})"
             )
 
             for post in posts:
@@ -155,12 +158,18 @@ class TumblrCollector:
                 match post["type"]:
                     case TumblrPostType.TEXT.value:
                         files = self._populate_files_from_text_post(
-                            files=files, post_html=post, blog_name=blog_name
+                            files=files,
+                            post_html=post,
+                            blog_name=blog_name,
+                            previous_blog_files_cnt=previous_blog_files_cnt,
                         )
 
                     case TumblrPostType.PHOTO.value:
                         files = self._populate_files_from_photo_post(
-                            files=files, post_html=post, blog_name=blog_name
+                            files=files,
+                            post_html=post,
+                            blog_name=blog_name,
+                            previous_blog_files_cnt=previous_blog_files_cnt,
                         )
 
                     case TumblrPostType.ANSWER.value:
@@ -169,10 +178,11 @@ class TumblrCollector:
                     case _:
                         self.logger.info(f"Not supported post type: {post['type']}")
 
-                if len(files) >= self.FILE_LIMIT_PER_BLOG:
+                if len(files) - previous_blog_files_cnt >= self.FILE_LIMIT_PER_BLOG:
                     self.logger.info(
-                        "The FILE_LIMIT_PER_BLOG is reached in `_get_files_from_blog`, "
-                        f"len(files) = {len(files)}"
+                        "The FILE_LIMIT_PER_BLOG is reached, "
+                        f"{blog_name}'s files: {len(files) - previous_blog_files_cnt}, "
+                        f"current total files: {len(files)})"
                     )
                     return files
 
@@ -185,7 +195,11 @@ class TumblrCollector:
         return files
 
     def _populate_files_from_text_post(
-        self, files: dict[str, FileMetadata], post_html: dict[str, Any], blog_name: str
+        self,
+        files: dict[str, FileMetadata],
+        post_html: dict[str, Any],
+        blog_name: str,
+        previous_blog_files_cnt: int,
     ) -> dict[str, FileMetadata]:
         content_raw: str = post_html["trail"][0]["content_raw"]
 
@@ -204,12 +218,7 @@ class TumblrCollector:
                 if file:
                     files[file.url] = file
 
-                if len(files) >= self.FILE_LIMIT_PER_BLOG:
-                    self.logger.info(
-                        "The FILE_LIMIT_PER_BLOG is reached in "
-                        "`_get_files_from_text_post` (image/gif clause), "
-                        f"len(files) = {len(files)}"
-                    )
+                if len(files) - previous_blog_files_cnt >= self.FILE_LIMIT_PER_BLOG:
                     return files
 
         # Some text blogs have videos
@@ -224,18 +233,17 @@ class TumblrCollector:
                     if file:
                         files[file.url] = file
 
-                    if len(files) >= self.FILE_LIMIT_PER_BLOG:
-                        self.logger.info(
-                            "The FILE_LIMIT_PER_BLOG is reached in "
-                            "`_get_files_from_text_post` (video clause), "
-                            f"len(files) = {len(files)}"
-                        )
+                    if len(files) - previous_blog_files_cnt >= self.FILE_LIMIT_PER_BLOG:
                         return files
 
         return files
 
     def _populate_files_from_photo_post(
-        self, files: dict[str, FileMetadata], post_html: dict[str, Any], blog_name: str
+        self,
+        files: dict[str, FileMetadata],
+        post_html: dict[str, Any],
+        blog_name: str,
+        previous_blog_files_cnt: int,
     ) -> dict[str, FileMetadata]:
         # Get the photo with the highest resolution
         url: str = post_html["photos"][0]["original_size"]["url"]
@@ -245,11 +253,7 @@ class TumblrCollector:
         if file:
             files[file.url] = file
 
-        if len(files) >= self.FILE_LIMIT_PER_BLOG:
-            self.logger.info(
-                "The FILE_LIMIT_PER_BLOG is reached in `_get_files_from_photo_post`, "
-                f"len(files) = {len(files)}"
-            )
+        if len(files) - previous_blog_files_cnt >= self.FILE_LIMIT_PER_BLOG:
             return files
 
         return files
