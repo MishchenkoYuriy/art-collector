@@ -91,10 +91,10 @@ class Helper:
         config_data: ConfigData = json.loads(json_content)
         return config_data["current_tumblr_blogs"]
 
-    def save_runtime_config(self, followed_blogs: list[str]) -> None:
+    def save_runtime_config(self, followed_blogs: set[str]) -> None:
         config_data = {
             "last_runtime": datetime.datetime.now(datetime.UTC).isoformat(),
-            "current_tumblr_blogs": followed_blogs,
+            "current_tumblr_blogs": list(followed_blogs),
         }
         json_content = json.dumps(config_data, indent=2)
         self.config_file.write_text(json_content)
