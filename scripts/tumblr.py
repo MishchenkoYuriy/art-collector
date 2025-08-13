@@ -8,6 +8,7 @@ import requests
 from dotenv import load_dotenv
 from file_metadata import FileMetadata, FileMetadataHelper
 from helper import Helper
+from pydantic import HttpUrl
 from requests_oauthlib import OAuth1
 from tumblr_enum import TumblrPostType
 
@@ -209,7 +210,7 @@ class TumblrCollector:
             for srcset_content in srcset_matches:
                 file_candidates = srcset_content.split(",")
                 # Get the file with the highest resolution
-                last_candidate_url = file_candidates[-1].split()[0]
+                last_candidate_url = HttpUrl(file_candidates[-1].split()[0])
 
                 file = self.file_meta.populate_file_metadata(
                     url=last_candidate_url, author=blog_name

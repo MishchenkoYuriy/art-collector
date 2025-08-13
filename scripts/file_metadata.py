@@ -1,19 +1,17 @@
 import logging
 import os
-from dataclasses import dataclass
 from pathlib import Path
 
 import requests
+from pydantic import BaseModel, HttpUrl, PositiveInt
 
 
-@dataclass
-class FileMetadata:
-    url: str
+class FileMetadata(BaseModel):
+    url: HttpUrl
     author: str
     local_path: Path
     mega_path: Path
-    size: int  # in bytes
-    # TODO: resolution: str
+    size: PositiveInt  # in bytes
 
 
 class FileMetadataHelper:
@@ -29,8 +27,8 @@ class FileMetadataHelper:
         )
         self.logger = logging.getLogger(__name__)
 
-    def populate_file_metadata(self, url: str, author: str) -> FileMetadata | None:
-        filename = Path(f"{author}_{Path(url).name}")
+    def populate_file_metadata(self, url: HttpUrl, author: str) -> FileMetadata | None:
+        filename = Path(f"{author}_{Path(str(url)).name}")
         if self.SAVE_TO_MEGA:
             local_path = self.local_temp_upload_dir / filename
         else:
