@@ -11,15 +11,17 @@ class FileMetadata:
     url: str
     author: str
     local_path: Path
-    upload_path: Path
+    mega_path: Path
     size: int  # in bytes
     # TODO: resolution: str
 
 
 class FileMetadataHelper:
     def __init__(self) -> None:
-        self.save_dir = Path("temp")
-        self.upload_path: str | None = os.getenv("MEGA_UPLOAD_PATH")
+        self.local_upload_path = Path(os.getenv("LOCAL_UPLOAD_PATH") or "temp")
+        self.local_temp_upload_dir = Path("temp")
+        self.mega_upload_path = Path(os.getenv("MEGA_UPLOAD_PATH", ""))
+        self.SAVE_TO_MEGA = os.getenv("SAVE_TO_MEGA", "True") == "True"
         logging.basicConfig(
             level=logging.INFO,
             format="[%(asctime)s]{%(filename)s:%(lineno)d}%(levelname)s - %(message)s",
@@ -29,8 +31,11 @@ class FileMetadataHelper:
 
     def populate_file_metadata(self, url: str, author: str) -> FileMetadata | None:
         filename = Path(f"{author}_{Path(url).name}")
-        local_path = self.save_dir / filename
-        upload_path = (self.upload_path or Path()) / filename
+        if self.SAVE_TO_MEGA:
+            local_path = self.local_temp_upload_dir / filename
+        else:
+            local_path = self.local_upload_path / filename
+        mega_path = self.mega_upload_path / filename
 
         resp = requests.head(url, timeout=10)
         resp.raise_for_status()
@@ -51,6 +56,6 @@ class FileMetadataHelper:
             url=url,
             author=author,
             local_path=local_path,
-            upload_path=upload_path,
+            mega_path=mega_path,
             size=file_size,
         )
