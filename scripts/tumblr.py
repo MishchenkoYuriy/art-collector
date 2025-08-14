@@ -89,7 +89,7 @@ class TumblrCollector:
         is_first_run = len(previous_tumblr_blogs) == 0
 
         for blog_name in current_blog_names:
-            files = self._populate_files_from_blog(
+            files = self._add_blog_files(
                 files=files,
                 blog_name=blog_name,
                 is_first_run=is_first_run,
@@ -98,7 +98,7 @@ class TumblrCollector:
 
         return list(files.values())
 
-    def _populate_files_from_blog(
+    def _add_blog_files(
         self,
         files: dict[str, FileMetadata],
         blog_name: str,
@@ -145,7 +145,7 @@ class TumblrCollector:
 
                 match post["type"]:
                     case TumblrPostType.TEXT.value:
-                        files = self._populate_files_from_text_post(
+                        files = self._add_files_from_text_post(
                             files=files,
                             post_html=post,
                             blog_name=blog_name,
@@ -153,7 +153,7 @@ class TumblrCollector:
                         )
 
                     case TumblrPostType.PHOTO.value:
-                        files = self._populate_files_from_photo_post(
+                        files = self._add_files_from_photo_post(
                             files=files,
                             post_html=post,
                             blog_name=blog_name,
@@ -185,7 +185,18 @@ class TumblrCollector:
 
         return files
 
-    def _populate_files_from_text_post(
+    def _add_file(
+        self, files: dict[str, FileMetadata], file: FileMetadata | None
+    ) -> dict[str, FileMetadata]:
+        if file:
+            file_key = file.etag if file.etag else file.url
+            if file_key in files:
+                self.logger.info(f"A duplicate found, key: {file_key}. Skipping...")
+            else:
+                files[file_key] = file
+        return files
+
+    def _add_files_from_text_post(
         self,
         files: dict[str, FileMetadata],
         post_html: dict[str, Any],
@@ -202,12 +213,10 @@ class TumblrCollector:
                 # Get the file with the highest resolution
                 last_candidate_url = HttpUrl(file_candidates[-1].split()[0])
 
-                file = self.file_meta.populate_file_metadata(
+                file = self.file_meta.create_file_metadata(
                     url=last_candidate_url, author=blog_name
                 )
-
-                if file:
-                    files[file.url] = file
+                files = self._add_file(files, file)
 
                 if (
                     len(files) - previous_blog_files_cnt
@@ -220,12 +229,10 @@ class TumblrCollector:
             srcset_matches = re.findall(r'<source src="([^"]+)"', content_raw)
             if srcset_matches:
                 for video_url in srcset_matches:
-                    file = self.file_meta.populate_file_metadata(
+                    file = self.file_meta.create_file_metadata(
                         url=video_url, author=blog_name
                     )
-
-                    if file:
-                        files[file.url] = file
+                    files = self._add_file(files, file)
 
                     if (
                         len(files) - previous_blog_files_cnt
@@ -235,7 +242,7 @@ class TumblrCollector:
 
         return files
 
-    def _populate_files_from_photo_post(
+    def _add_files_from_photo_post(
         self,
         files: dict[str, FileMetadata],
         post_html: dict[str, Any],
@@ -245,10 +252,8 @@ class TumblrCollector:
         # Get the photo with the highest resolution
         url: str = post_html["photos"][0]["original_size"]["url"]
 
-        file = self.file_meta.populate_file_metadata(url=url, author=blog_name)
-
-        if file:
-            files[file.url] = file
+        file = self.file_meta.create_file_metadata(url=url, author=blog_name)
+        files = self._add_file(files, file)
 
         if len(files) - previous_blog_files_cnt >= settings.TUMBLR_FILE_LIMIT_PER_BLOG:
             return files
