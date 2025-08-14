@@ -23,6 +23,7 @@ class Helper:
         self.logger = logging.getLogger(__name__)
 
     def download_files(self, files: list[FileMetadata]) -> None:
+        self.logger.info("Start downloading files...")
         local_folder_size = 0  # track folder size incrementally in bytes
         for file in files:
             try:
@@ -67,6 +68,8 @@ class Helper:
                 self.logger.warning(
                     f"Failed to download {file.url}. Error: {e}. Skipping...\n"
                 )
+
+        self.logger.info("The files have been downloaded!")
 
     def clean_temp_directory(self) -> None:
         if settings.SAVE_TO_MEGA:
