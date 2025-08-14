@@ -74,6 +74,7 @@ class MegaSaver:
 
     def upload_local_files(self, files: list[FileMetadata]) -> None:
         if settings.SAVE_TO_MEGA:
+            self.logger.info("Start uploading files to MEGA...")
             mega_folder_size = self._get_mega_folder_size()
 
             for file in files:
@@ -95,3 +96,5 @@ class MegaSaver:
                 subprocess.run(command, check=True)
 
                 mega_folder_size += file.size
+
+            self.logger.info("The files have been uploaded to MEGA!")

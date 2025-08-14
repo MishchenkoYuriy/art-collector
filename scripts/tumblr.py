@@ -10,10 +10,6 @@ from pydantic import HttpUrl
 from requests_oauthlib import OAuth1
 from tumblr_enum import TumblrPostType
 
-# TODO: look into type, date, post_url attibutes of the post
-# TODO: look into https://www.tumblr.com/docs/en/api/v2#postsdraft--retrieve-draft-posts
-# TODO: look into https://www.tumblr.com/docs/en/api/v2#postsqueue--retrieve-queued-posts
-
 # https://www.tumblr.com/docs/en/api/v2
 # https://api.tumblr.com/v2/user/info
 
@@ -44,6 +40,8 @@ class TumblrCollector:
         return int(resp.json()["response"]["user"]["following"])
 
     def get_followed_blogs(self) -> set[str]:
+        self.logger.info("Start extracting followed blogs...")
+
         followed_blog_names: set[str] = set()
         page_blog_names: set[str] = set()
         offset = 0
@@ -65,6 +63,7 @@ class TumblrCollector:
             offset += self.tumblr_api_limit
 
         followed_blog_cnt = self.get_current_user_followed_blog_cnt()
+        self.logger.info(f"{len(followed_blog_names)} blogs have been extracted.")
         if followed_blog_cnt != len(followed_blog_names):
             self.logger.warning(
                 "The number of followed blogs from the API does not match, "
@@ -76,17 +75,28 @@ class TumblrCollector:
 
     def _filter_blogs(self, blogs: set[str]) -> set[str]:
         if settings.TUMBLR_BLOGS_TO_CRAWL == {"all"}:  # noqa: SIM300
-            filtered_blogs = blogs
+            blogs_to_crawl = blogs
         else:
-            filtered_blogs = blogs.intersection(settings.TUMBLR_BLOGS_TO_CRAWL)
+            blogs_to_crawl = blogs.intersection(settings.TUMBLR_BLOGS_TO_CRAWL)
 
-        return filtered_blogs.difference(settings.TUMBLR_BLOGS_TO_IGNORE)
+        filtered_blogs = blogs_to_crawl.difference(settings.TUMBLR_BLOGS_TO_IGNORE)
+        self.logger.info(
+            "The blog filters were applied. "
+            f"{len(filtered_blogs)} blogs will be processed."
+        )
+        return filtered_blogs
 
     def get_files_from_blogs(self, current_blog_names: set[str]) -> list[FileMetadata]:
-        # url as a key handles duplicates from different posts
+        self.logger.info("Start extracting files...")
+        # url or etag as a key handles duplicates from different posts
         files: dict[str, FileMetadata] = {}
         previous_tumblr_blogs = self.helper.get_previous_run_tumblr_blogs()
         is_first_run = len(previous_tumblr_blogs) == 0
+        if is_first_run:
+            self.logger.info(
+                "The first run detected. "
+                "`last_runtime` form `config.json` will be ignored."
+            )
 
         for blog_name in current_blog_names:
             files = self._add_blog_files(
@@ -96,6 +106,7 @@ class TumblrCollector:
                 previous_tumblr_blogs=previous_tumblr_blogs,
             )
 
+        self.logger.info(f"{len(files)} files have been extracted.")
         return list(files.values())
 
     def _add_blog_files(
@@ -108,6 +119,11 @@ class TumblrCollector:
         previous_blog_files_cnt = len(files)
         offset = 0
         is_new_blog = blog_name not in previous_tumblr_blogs
+        if is_new_blog and not is_first_run:
+            self.logger.info(
+                f"{blog_name} is a new blog. "
+                "`last_runtime` form `config.json` will be ignored for it."
+            )
 
         while True:
             params = {"limit": self.tumblr_api_limit, "offset": offset}
@@ -128,14 +144,16 @@ class TumblrCollector:
             posts = resp.json()["response"]["posts"]
 
             if not posts:
-                self.logger.warning(f"The end of the blog {blog_name} has been reached")
+                self.logger.warning(
+                    f"The end of the blog {blog_name} has been reached."
+                )
                 break
 
             self.logger.info(
                 f"Processing {len(posts)} posts from {blog_name} "
                 f"(offset: {offset}, "
                 f"{blog_name} files: {previous_blog_files_cnt - len(files)}, "
-                f"current total files: {len(files)})"
+                f"current total files: {len(files)})."
             )
 
             for post in posts:
@@ -164,7 +182,7 @@ class TumblrCollector:
                         continue  # /posts does not support filtering by multiple types
 
                     case _:
-                        self.logger.info(f"Not supported post type: {post['type']}")
+                        self.logger.info(f"Not supported post type: {post['type']}.")
 
                 if (
                     len(files) - previous_blog_files_cnt
@@ -173,12 +191,14 @@ class TumblrCollector:
                     self.logger.info(
                         "The TUMBLR_FILE_LIMIT_PER_BLOG is reached, "
                         f"{blog_name}'s files: {len(files) - previous_blog_files_cnt}, "
-                        f"current total files: {len(files)})"
+                        f"current total files: {len(files)})."
                     )
                     return files
 
             if len(posts) < self.tumblr_api_limit:
-                self.logger.warning(f"The end of the blog {blog_name} has been reached")
+                self.logger.warning(
+                    f"The end of the blog {blog_name} has been reached."
+                )
                 break
 
             offset += self.tumblr_api_limit
