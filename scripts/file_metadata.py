@@ -8,6 +8,7 @@ from pydantic import BaseModel, HttpUrl, PositiveInt
 
 class FileMetadata(BaseModel):
     url: HttpUrl
+    etag: str | None
     author: str
     local_path: Path
     mega_path: Path
@@ -23,7 +24,7 @@ class FileMetadataHelper:
         )
         self.logger = logging.getLogger(__name__)
 
-    def populate_file_metadata(self, url: HttpUrl, author: str) -> FileMetadata | None:
+    def create_file_metadata(self, url: HttpUrl, author: str) -> FileMetadata | None:
         filename = Path(f"{author}_{Path(str(url)).name}")
         if settings.SAVE_TO_MEGA:
             local_path = settings.LOCAL_TEMP_UPLOAD_DIR / filename
@@ -33,6 +34,14 @@ class FileMetadataHelper:
 
         resp = requests.head(str(url), timeout=10)
         resp.raise_for_status()
+
+        etag: str | None = (
+            resp.headers["ETag"].strip('"') if resp.headers.get("ETag", None) else None
+        )
+
+        if etag is None:
+            self.logger.info(f"ETag is missing for {url}")
+
         file_size: int | None = (
             int(resp.headers["content-length"])
             if resp.headers.get("content-length", None)
@@ -48,6 +57,7 @@ class FileMetadataHelper:
 
         return FileMetadata(
             url=url,
+            etag=etag,
             author=author,
             local_path=local_path,
             mega_path=mega_path,
