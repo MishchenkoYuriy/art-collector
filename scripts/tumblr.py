@@ -204,19 +204,28 @@ class TumblrCollector:
         previous_blog_files_cnt: int,
     ) -> dict[str, FileMetadata]:
         content_raw: str = post_html["trail"][0]["content_raw"]
+        post_slug: str = post_html["slug"]
 
         # Split content_raw as a post can have multiple images/gifs
         srcset_matches = re.findall(r'srcset="([^"]+)"', content_raw)
         if srcset_matches:
+            # If the post has more than one image/gif,
+            # use numeric_suffix to distinguish them
+            numeric_suffix = 1 if len(srcset_matches) > 1 else None
             for srcset_content in srcset_matches:
                 file_candidates = srcset_content.split(",")
                 # Get the file with the highest resolution
                 last_candidate_url = HttpUrl(file_candidates[-1].split()[0])
 
                 file = self.file_meta.create_file_metadata(
-                    url=last_candidate_url, author=blog_name
+                    url=last_candidate_url,
+                    author=blog_name,
+                    post_slug=post_slug,
+                    numeric_suffix=numeric_suffix,
                 )
                 files = self._add_file(files, file)
+                if numeric_suffix is not None:
+                    numeric_suffix += 1
 
                 if (
                     len(files) - previous_blog_files_cnt
@@ -228,11 +237,17 @@ class TumblrCollector:
         if settings.TUMBLR_COLLECT_VIDEOS:
             srcset_matches = re.findall(r'<source src="([^"]+)"', content_raw)
             if srcset_matches:
+                numeric_suffix = 1 if len(srcset_matches) > 1 else None
                 for video_url in srcset_matches:
                     file = self.file_meta.create_file_metadata(
-                        url=video_url, author=blog_name
+                        url=video_url,
+                        author=blog_name,
+                        post_slug=post_slug,
+                        numeric_suffix=numeric_suffix,
                     )
                     files = self._add_file(files, file)
+                    if numeric_suffix is not None:
+                        numeric_suffix += 1
 
                     if (
                         len(files) - previous_blog_files_cnt
@@ -251,8 +266,14 @@ class TumblrCollector:
     ) -> dict[str, FileMetadata]:
         # Get the photo with the highest resolution
         url: str = post_html["photos"][0]["original_size"]["url"]
+        post_slug: str = post_html["slug"]
 
-        file = self.file_meta.create_file_metadata(url=url, author=blog_name)
+        file = self.file_meta.create_file_metadata(
+            url=url,
+            author=blog_name,
+            post_slug=post_slug,
+            numeric_suffix=None,  # a single photo does not require numbering
+        )
         files = self._add_file(files, file)
 
         if len(files) - previous_blog_files_cnt >= settings.TUMBLR_FILE_LIMIT_PER_BLOG:

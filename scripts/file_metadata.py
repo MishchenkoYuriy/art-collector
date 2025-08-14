@@ -9,7 +9,6 @@ from pydantic import BaseModel, HttpUrl, PositiveInt
 class FileMetadata(BaseModel):
     url: HttpUrl
     etag: str | None
-    author: str
     local_path: Path
     mega_path: Path
     size: PositiveInt  # in bytes
@@ -24,8 +23,21 @@ class FileMetadataHelper:
         )
         self.logger = logging.getLogger(__name__)
 
-    def create_file_metadata(self, url: HttpUrl, author: str) -> FileMetadata | None:
-        filename = Path(f"{author}_{Path(str(url)).name}")
+    def _create_filename(
+        self, author: str, post_slug: str, numeric_suffix: int | None, file_format: str
+    ) -> str:
+        suffix = f"_{numeric_suffix}" if numeric_suffix else ""
+        return f"{author}_{post_slug}{suffix}{file_format}"
+
+    def create_file_metadata(
+        self, url: HttpUrl, author: str, post_slug: str, numeric_suffix: int | None
+    ) -> FileMetadata | None:
+        filename = self._create_filename(
+            author=author,
+            post_slug=post_slug,
+            numeric_suffix=numeric_suffix,
+            file_format=Path(str(url)).suffix,  # includes a dot
+        )
         if settings.SAVE_TO_MEGA:
             local_path = settings.LOCAL_TEMP_UPLOAD_DIR / filename
         else:
@@ -58,7 +70,6 @@ class FileMetadataHelper:
         return FileMetadata(
             url=url,
             etag=etag,
-            author=author,
             local_path=local_path,
             mega_path=mega_path,
             size=file_size,
