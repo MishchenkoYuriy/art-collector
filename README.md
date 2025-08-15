@@ -8,3 +8,5 @@ https://api.tumblr.com/console/calls/user/info — copy the rest as TUMBLR_OAUTH
 
 download megacmd https://mega.io/cmd
 add megacmd to your path: `export PATH=/Applications/MEGAcmd.app/Contents/MacOS:$PATH` for mac
+
+The MEGA_FOLDER_SIZE_LIMIT_MB limit may be slightly exceeded due to the nature of multithreading.
