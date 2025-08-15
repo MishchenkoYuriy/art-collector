@@ -88,11 +88,13 @@ class TumblrCollector:
         return filtered_blogs
 
     def produce_files_from_blogs(
-        self, current_blog_names: set[str], file_queue: queue.Queue[FileMetadata | None]
+        self, blog_names: set[str], file_queue: queue.Queue[FileMetadata | None]
     ) -> None:
         self.logger.info("Start extracting files...")
         # url or etag as a key handles duplicates from different posts
-        processed_keys: set[str] = set()
+        processed_keys: dict[str, set[str]] = {
+            blog_name: set() for blog_name in blog_names
+        }
         previous_tumblr_blogs = self.helper.get_previous_run_tumblr_blogs()
         is_first_run = len(previous_tumblr_blogs) == 0
         if is_first_run:
@@ -101,7 +103,7 @@ class TumblrCollector:
                 "`last_runtime` form `config.json` will be ignored."
             )
 
-        for blog_name in current_blog_names:
+        for blog_name in blog_names:
             self._add_blog_files(
                 file_queue=file_queue,
                 processed_keys=processed_keys,
@@ -115,7 +117,7 @@ class TumblrCollector:
     def _add_blog_files(
         self,
         file_queue: queue.Queue[FileMetadata | None],
-        processed_keys: set[str],
+        processed_keys: dict[str, set[str]],
         blog_name: str,
         is_first_run: bool,
         previous_tumblr_blogs: list[str],
@@ -128,7 +130,7 @@ class TumblrCollector:
                 "`last_runtime` form `config.json` will be ignored for it."
             )
 
-        while len(processed_keys) < settings.TUMBLR_FILE_LIMIT_PER_BLOG:  # TODO: fix
+        while len(processed_keys[blog_name]) < settings.TUMBLR_FILE_LIMIT_PER_BLOG:
             params = {"limit": self.tumblr_api_limit, "offset": offset}
 
             if is_first_run or is_new_blog:
@@ -191,23 +193,23 @@ class TumblrCollector:
     def _add_file(
         self,
         file_queue: queue.Queue[FileMetadata | None],
-        processed_keys: set[str],
+        processed_keys: dict[str, set[str]],
         file: FileMetadata | None,
+        blog_name: str,
     ) -> None:
-        if (
-            len(processed_keys) < settings.TUMBLR_FILE_LIMIT_PER_BLOG and file
-        ):  # TODO: fix
+        blog_file_cnt = len(processed_keys[blog_name])
+        if blog_file_cnt < settings.TUMBLR_FILE_LIMIT_PER_BLOG and file:
             file_key = file.etag if file.etag else file.url
-            if file_key in processed_keys:
+            if file_key in processed_keys[blog_name]:
                 self.logger.info(f"A duplicate found, key: {file_key}. Skipping...")
             else:
-                processed_keys.add(file_key)
+                processed_keys[blog_name].add(file_key)
                 file_queue.put(file)
 
     def _add_files_from_text_post(
         self,
         file_queue: queue.Queue[FileMetadata | None],
-        processed_keys: set[str],
+        processed_keys: dict[str, set[str]],
         post_html: dict[str, Any],
         blog_name: str,
     ) -> None:
@@ -231,7 +233,7 @@ class TumblrCollector:
                     post_slug=post_slug,
                     numeric_suffix=numeric_suffix,
                 )
-                self._add_file(file_queue, processed_keys, file)
+                self._add_file(file_queue, processed_keys, file, blog_name)
                 if numeric_suffix is not None:
                     numeric_suffix += 1
 
@@ -247,14 +249,14 @@ class TumblrCollector:
                         post_slug=post_slug,
                         numeric_suffix=numeric_suffix,
                     )
-                    self._add_file(file_queue, processed_keys, file)
+                    self._add_file(file_queue, processed_keys, file, blog_name)
                     if numeric_suffix is not None:
                         numeric_suffix += 1
 
     def _add_files_from_photo_post(
         self,
         file_queue: queue.Queue[FileMetadata | None],
-        processed_keys: set[str],
+        processed_keys: dict[str, set[str]],
         post_html: dict[str, Any],
         blog_name: str,
     ) -> None:
@@ -268,4 +270,4 @@ class TumblrCollector:
             post_slug=post_slug,
             numeric_suffix=None,  # a single photo does not require numbering
         )
-        self._add_file(file_queue, processed_keys, file)
+        self._add_file(file_queue, processed_keys, file, blog_name)
