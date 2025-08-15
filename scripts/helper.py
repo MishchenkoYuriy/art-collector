@@ -22,54 +22,36 @@ class Helper:
         )
         self.logger = logging.getLogger(__name__)
 
-    def download_files(self, files: list[FileMetadata]) -> None:
-        self.logger.info("Start downloading files...")
-        local_folder_size = 0  # track folder size incrementally in bytes
-        for file in files:
-            try:
-                resp = requests.get(str(file.url), stream=True, timeout=10)
-                resp.raise_for_status()
+    def download_file(self, file: FileMetadata) -> None:
+        try:
+            resp = requests.get(str(file.url), stream=True, timeout=10)
+            resp.raise_for_status()
 
-                if file.size > settings.LOCAL_FILE_SIZE_LIMIT_BYTES:
-                    size_in_mb = self.convert_bytes_to_mb(file.size)
-                    self.logger.warning(
-                        f"The file {file.url} exceeded the "
-                        f"{settings.LOCAL_FILE_SIZE_LIMIT_MB} MB limit. "
-                        f"The file size is {size_in_mb} MB. Skipping..."
-                    )
-                    continue
-
-                # Check if adding this file would exceed folder size limit
-                if (
-                    local_folder_size + file.size
-                    > settings.LOCAL_FOLDER_SIZE_LIMIT_BYTES
-                ):
-                    folder_size_mb = self.convert_bytes_to_mb(local_folder_size)
-                    size_in_mb = self.convert_bytes_to_mb(file.size)
-                    self.logger.warning(
-                        f"Adding file {file.url} ({size_in_mb} MB) would "
-                        "exceed the folder size limit of "
-                        f"{settings.LOCAL_FOLDER_SIZE_LIMIT_MB} "
-                        f" MB. Current folder size: {folder_size_mb} MB."
-                    )
-                    break
-
-                if file.local_path.exists():
-                    self.logger.info(f"{file.local_path} already exists. Skipping...")
-                    continue
-
-                with file.local_path.open("wb") as f:
-                    for chunk in resp.iter_content(chunk_size=8192):
-                        f.write(chunk)
-
-                local_folder_size += file.size
-
-            except requests.exceptions.RequestException as e:
+            if file.size > settings.LOCAL_FILE_SIZE_LIMIT_BYTES:
+                size_in_mb = self.convert_bytes_to_mb(file.size)
                 self.logger.warning(
-                    f"Failed to download {file.url}. Error: {e}. Skipping...\n"
+                    f"The file {file.url} exceeded the "
+                    f"{settings.LOCAL_FILE_SIZE_LIMIT_MB} MB limit. "
+                    f"The file size is {size_in_mb} MB. Skipping..."
                 )
+                return
 
-        self.logger.info("The files have been downloaded!")
+            if file.local_path.exists():
+                self.logger.info(f"{file.local_path} already exists. Skipping...")
+                return
+
+            with file.local_path.open("wb") as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+        except requests.exceptions.RequestException as e:
+            self.logger.warning(
+                f"Failed to download {file.url}. Error: {e}. Skipping...\n"
+            )
+
+    def delete_local_file(self, file: FileMetadata) -> None:
+        if settings.SAVE_TO_MEGA and file.local_path.is_file():
+            file.local_path.unlink()
 
     def clean_temp_directory(self) -> None:
         if settings.SAVE_TO_MEGA:

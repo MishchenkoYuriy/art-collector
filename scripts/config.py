@@ -22,7 +22,6 @@ class Settings(BaseSettings):
     TUMBLR_BLOGS_TO_IGNORE: Annotated[set[str], NoDecode] = Field(default=set())
 
     LOCAL_FILE_SIZE_LIMIT_MB: int = Field(default=10)
-    LOCAL_FOLDER_SIZE_LIMIT_MB: int = Field(default=1000)
     LOCAL_UPLOAD_PATH: DirectoryPath | None = Field(default=None)
     LOCAL_TEMP_UPLOAD_DIR: Path = Path("temp")
 
@@ -34,6 +33,7 @@ class Settings(BaseSettings):
     MEGA_FOLDER_SIZE_LIMIT_MB: int = Field(default=1000)
 
     CONFIG_FILE: Path = Path(__file__).resolve().parent.parent / "config.json"
+    MAX_WORKERS: int = 8
 
     @field_validator("TUMBLR_BLOGS_TO_CRAWL", "TUMBLR_BLOGS_TO_IGNORE", mode="before")
     @classmethod
@@ -45,10 +45,6 @@ class Settings(BaseSettings):
     @computed_field
     def LOCAL_FILE_SIZE_LIMIT_BYTES(self) -> int:  # noqa: N802
         return self.LOCAL_FILE_SIZE_LIMIT_MB * 1024 * 1024
-
-    @computed_field
-    def LOCAL_FOLDER_SIZE_LIMIT_BYTES(self) -> int:  # noqa: N802
-        return self.LOCAL_FOLDER_SIZE_LIMIT_MB * 1024 * 1024
 
     @computed_field
     def MEGA_FOLDER_SIZE_LIMIT_BYTES(self) -> int:  # noqa: N802
