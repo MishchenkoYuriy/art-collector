@@ -4,12 +4,14 @@ import subprocess
 
 from config import settings
 from file_metadata import FileMetadata
+from helper import Helper
 
 # https://github.com/meganz/MEGAcmd/blob/master/UserGuide.md
 
 
 class MegaSaver:
     def __init__(self) -> None:
+        self.helper = Helper()
         logging.basicConfig(
             level=logging.INFO,
             format="[%(asctime)s]{%(filename)s:%(lineno)d}%(levelname)s - %(message)s",
@@ -50,7 +52,7 @@ class MegaSaver:
         if settings.SAVE_TO_MEGA:
             subprocess.run("mega-logout", check=True)
 
-    def _get_mega_folder_size(self) -> int:
+    def get_mega_folder_size(self) -> int:
         if settings.MEGA_UPLOAD_PATH:
             command = ["mega-du", settings.MEGA_UPLOAD_PATH]
             try:
@@ -74,12 +76,13 @@ class MegaSaver:
 
     def upload_local_file(self, file: FileMetadata) -> None:
         if settings.SAVE_TO_MEGA:
-            mega_folder_size = self._get_mega_folder_size()
+            mega_folder_size = self.get_mega_folder_size()
 
             # Check if adding this file would exceed folder size limit
             if mega_folder_size + file.size > settings.MEGA_FOLDER_SIZE_LIMIT_BYTES:
+                size_in_mb = self.helper.convert_bytes_to_mb(file.size)
                 self.logger.warning(
-                    f"Adding file {file.url} ({file.size} MB) would "
+                    f"Adding file {file.url} ({size_in_mb} MB) would "
                     "exceed folder size limit of "
                     f"{settings.MEGA_FOLDER_SIZE_LIMIT_MB} MB."
                 )

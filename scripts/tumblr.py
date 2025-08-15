@@ -7,6 +7,7 @@ import requests
 from config import settings
 from file_metadata import FileMetadata, FileMetadataHelper
 from helper import Helper
+from mega import MegaSaver
 from pydantic import HttpUrl
 from requests_oauthlib import OAuth1
 from tumblr_enum import TumblrPostType
@@ -20,6 +21,7 @@ class TumblrCollector:
         self.tumblr_api_limit = 20
         self.url_pattern = re.compile(r"\s*(https?://[^\s]+)\s+([0-9]+)w\s*")
         self.helper = Helper()
+        self.mega = MegaSaver()
         self.file_meta = FileMetadataHelper()
         self.oauth = OAuth1(
             client_key=settings.TUMBLR_CONSUMER_KEY,
@@ -130,7 +132,10 @@ class TumblrCollector:
                 "`last_runtime` form `config.json` will be ignored for it."
             )
 
-        while len(processed_keys[blog_name]) < settings.TUMBLR_FILE_LIMIT_PER_BLOG:
+        while (
+            len(processed_keys[blog_name]) < settings.TUMBLR_FILE_LIMIT_PER_BLOG
+            and self.mega.get_mega_folder_size() < settings.MEGA_FOLDER_SIZE_LIMIT_BYTES
+        ):
             params = {"limit": self.tumblr_api_limit, "offset": offset}
 
             if is_first_run or is_new_blog:
