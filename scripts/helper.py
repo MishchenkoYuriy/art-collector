@@ -55,7 +55,7 @@ class Helper:
                     break
 
                 if file.local_path.exists():
-                    self.logger.info("A copy is found. Skipping...")
+                    self.logger.info(f"{file.local_path} already exists. Skipping...")
                     continue
 
                 with file.local_path.open("wb") as f:

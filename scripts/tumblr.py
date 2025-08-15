@@ -152,7 +152,7 @@ class TumblrCollector:
             self.logger.info(
                 f"Processing {len(posts)} posts from {blog_name} "
                 f"(offset: {offset}, "
-                f"{blog_name} files: {previous_blog_files_cnt - len(files)}, "
+                f"{blog_name} files: {len(files) - previous_blog_files_cnt}, "
                 f"current total files: {len(files)})."
             )
 
@@ -224,7 +224,7 @@ class TumblrCollector:
         previous_blog_files_cnt: int,
     ) -> dict[str, FileMetadata]:
         content_raw: str = post_html["trail"][0]["content_raw"]
-        post_slug: str = post_html["slug"]
+        post_slug: str | None = post_html["slug"]
 
         # Split content_raw as a post can have multiple images/gifs
         srcset_matches = re.findall(r'srcset="([^"]+)"', content_raw)
@@ -286,7 +286,7 @@ class TumblrCollector:
     ) -> dict[str, FileMetadata]:
         # Get the photo with the highest resolution
         url: str = post_html["photos"][0]["original_size"]["url"]
-        post_slug: str = post_html["slug"]
+        post_slug: str | None = post_html["slug"]
 
         file = self.file_meta.create_file_metadata(
             url=url,
