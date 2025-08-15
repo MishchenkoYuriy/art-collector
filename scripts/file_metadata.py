@@ -31,7 +31,8 @@ class FileMetadataHelper:
         numeric_suffix: int | None,
         file_format: str,
     ) -> str:
-        file_stem = post_slug if post_slug else stem
+        # 2 posts may have the same stem leading to false positive duplicates
+        file_stem = f"{post_slug}_{stem}" if post_slug else stem
         suffix = f"_{numeric_suffix}" if numeric_suffix else ""
         return f"{author}_{file_stem}{suffix}{file_format}"
 
