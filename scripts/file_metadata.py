@@ -24,17 +24,29 @@ class FileMetadataHelper:
         self.logger = logging.getLogger(__name__)
 
     def _create_filename(
-        self, author: str, post_slug: str, numeric_suffix: int | None, file_format: str
+        self,
+        author: str,
+        post_slug: str | None,
+        stem: str,
+        numeric_suffix: int | None,
+        file_format: str,
     ) -> str:
+        file_stem = post_slug if post_slug else stem
         suffix = f"_{numeric_suffix}" if numeric_suffix else ""
-        return f"{author}_{post_slug}{suffix}{file_format}"
+        return f"{author}_{file_stem}{suffix}{file_format}"
 
     def create_file_metadata(
-        self, url: HttpUrl, author: str, post_slug: str, numeric_suffix: int | None
+        self,
+        url: HttpUrl,
+        author: str,
+        post_slug: str | None,
+        numeric_suffix: int | None,
     ) -> FileMetadata | None:
+        stem = Path(str(url)).stem
         filename = self._create_filename(
             author=author,
             post_slug=post_slug,
+            stem=stem,
             numeric_suffix=numeric_suffix,
             file_format=Path(str(url)).suffix,  # includes a dot
         )
