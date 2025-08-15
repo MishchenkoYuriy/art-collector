@@ -72,29 +72,23 @@ class MegaSaver:
                 return int(match.group(0))
         return 0
 
-    def upload_local_files(self, files: list[FileMetadata]) -> None:
+    def upload_local_file(self, file: FileMetadata) -> None:
         if settings.SAVE_TO_MEGA:
-            self.logger.info("Start uploading files to MEGA...")
             mega_folder_size = self._get_mega_folder_size()
 
-            for file in files:
-                # Check if adding this file would exceed folder size limit
-                if mega_folder_size + file.size > settings.MEGA_FOLDER_SIZE_LIMIT_BYTES:
-                    self.logger.warning(
-                        f"Adding file {file.url} ({file.size} MB) would "
-                        "exceed folder size limit of "
-                        f"{settings.MEGA_FOLDER_SIZE_LIMIT_MB} MB."
-                    )
-                    break
+            # Check if adding this file would exceed folder size limit
+            if mega_folder_size + file.size > settings.MEGA_FOLDER_SIZE_LIMIT_BYTES:
+                self.logger.warning(
+                    f"Adding file {file.url} ({file.size} MB) would "
+                    "exceed folder size limit of "
+                    f"{settings.MEGA_FOLDER_SIZE_LIMIT_MB} MB."
+                )
+                return
 
-                command = [
-                    "mega-put",
-                    "-c",
-                    str(file.local_path),
-                    str(file.mega_path),
-                ]  # -c	Creates remote folder destination in case of not existing
-                subprocess.run(command, check=True)
-
-                mega_folder_size += file.size
-
-            self.logger.info("The files have been uploaded to MEGA!")
+            command = [
+                "mega-put",
+                "-c",
+                str(file.local_path),
+                str(file.mega_path),
+            ]  # -c	Creates remote folder destination in case of not existing
+            subprocess.run(command, check=True)

@@ -1,4 +1,5 @@
 import logging
+import queue
 import re
 from typing import Any
 
@@ -86,10 +87,12 @@ class TumblrCollector:
         )
         return filtered_blogs
 
-    def get_files_from_blogs(self, current_blog_names: set[str]) -> list[FileMetadata]:
+    def produce_files_from_blogs(
+        self, current_blog_names: set[str], file_queue: queue.Queue[FileMetadata | None]
+    ) -> None:
         self.logger.info("Start extracting files...")
         # url or etag as a key handles duplicates from different posts
-        files: dict[str, FileMetadata] = {}
+        processed_keys: set[str] = set()
         previous_tumblr_blogs = self.helper.get_previous_run_tumblr_blogs()
         is_first_run = len(previous_tumblr_blogs) == 0
         if is_first_run:
@@ -99,24 +102,24 @@ class TumblrCollector:
             )
 
         for blog_name in current_blog_names:
-            files = self._add_blog_files(
-                files=files,
+            self._add_blog_files(
+                file_queue=file_queue,
+                processed_keys=processed_keys,
                 blog_name=blog_name,
                 is_first_run=is_first_run,
                 previous_tumblr_blogs=previous_tumblr_blogs,
             )
 
-        self.logger.info(f"{len(files)} files have been extracted.")
-        return list(files.values())
+        self.logger.info("All files have been produced.")
 
     def _add_blog_files(
         self,
-        files: dict[str, FileMetadata],
+        file_queue: queue.Queue[FileMetadata | None],
+        processed_keys: set[str],
         blog_name: str,
         is_first_run: bool,
         previous_tumblr_blogs: list[str],
-    ) -> dict[str, FileMetadata]:
-        previous_blog_files_cnt = len(files)
+    ) -> None:
         offset = 0
         is_new_blog = blog_name not in previous_tumblr_blogs
         if is_new_blog and not is_first_run:
@@ -125,7 +128,7 @@ class TumblrCollector:
                 "`last_runtime` form `config.json` will be ignored for it."
             )
 
-        while True:
+        while len(processed_keys) < settings.TUMBLR_FILE_LIMIT_PER_BLOG:  # TODO: fix
             params = {"limit": self.tumblr_api_limit, "offset": offset}
 
             if is_first_run or is_new_blog:
@@ -149,13 +152,6 @@ class TumblrCollector:
                 )
                 break
 
-            self.logger.info(
-                f"Processing {len(posts)} posts from {blog_name} "
-                f"(offset: {offset}, "
-                f"{blog_name} files: {len(files) - previous_blog_files_cnt}, "
-                f"current total files: {len(files)})."
-            )
-
             for post in posts:
                 is_repost = "parent_post_url" in post
                 if is_repost:
@@ -163,19 +159,19 @@ class TumblrCollector:
 
                 match post["type"]:
                     case TumblrPostType.TEXT.value:
-                        files = self._add_files_from_text_post(
-                            files=files,
+                        self._add_files_from_text_post(
+                            file_queue=file_queue,
+                            processed_keys=processed_keys,
                             post_html=post,
                             blog_name=blog_name,
-                            previous_blog_files_cnt=previous_blog_files_cnt,
                         )
 
                     case TumblrPostType.PHOTO.value:
-                        files = self._add_files_from_photo_post(
-                            files=files,
+                        self._add_files_from_photo_post(
+                            file_queue=file_queue,
+                            processed_keys=processed_keys,
                             post_html=post,
                             blog_name=blog_name,
-                            previous_blog_files_cnt=previous_blog_files_cnt,
                         )
 
                     case TumblrPostType.ANSWER.value:
@@ -183,17 +179,6 @@ class TumblrCollector:
 
                     case _:
                         self.logger.info(f"Not supported post type: {post['type']}.")
-
-                if (
-                    len(files) - previous_blog_files_cnt
-                    >= settings.TUMBLR_FILE_LIMIT_PER_BLOG
-                ):
-                    self.logger.info(
-                        "The TUMBLR_FILE_LIMIT_PER_BLOG is reached, "
-                        f"{blog_name}'s files: {len(files) - previous_blog_files_cnt}, "
-                        f"current total files: {len(files)})."
-                    )
-                    return files
 
             if len(posts) < self.tumblr_api_limit:
                 self.logger.warning(
@@ -203,26 +188,29 @@ class TumblrCollector:
 
             offset += self.tumblr_api_limit
 
-        return files
-
     def _add_file(
-        self, files: dict[str, FileMetadata], file: FileMetadata | None
-    ) -> dict[str, FileMetadata]:
-        if file:
+        self,
+        file_queue: queue.Queue[FileMetadata | None],
+        processed_keys: set[str],
+        file: FileMetadata | None,
+    ) -> None:
+        if (
+            len(processed_keys) < settings.TUMBLR_FILE_LIMIT_PER_BLOG and file
+        ):  # TODO: fix
             file_key = file.etag if file.etag else file.url
-            if file_key in files:
+            if file_key in processed_keys:
                 self.logger.info(f"A duplicate found, key: {file_key}. Skipping...")
             else:
-                files[file_key] = file
-        return files
+                processed_keys.add(file_key)
+                file_queue.put(file)
 
     def _add_files_from_text_post(
         self,
-        files: dict[str, FileMetadata],
+        file_queue: queue.Queue[FileMetadata | None],
+        processed_keys: set[str],
         post_html: dict[str, Any],
         blog_name: str,
-        previous_blog_files_cnt: int,
-    ) -> dict[str, FileMetadata]:
+    ) -> None:
         content_raw: str = post_html["trail"][0]["content_raw"]
         post_slug: str | None = post_html["slug"]
 
@@ -243,15 +231,9 @@ class TumblrCollector:
                     post_slug=post_slug,
                     numeric_suffix=numeric_suffix,
                 )
-                files = self._add_file(files, file)
+                self._add_file(file_queue, processed_keys, file)
                 if numeric_suffix is not None:
                     numeric_suffix += 1
-
-                if (
-                    len(files) - previous_blog_files_cnt
-                    >= settings.TUMBLR_FILE_LIMIT_PER_BLOG
-                ):
-                    return files
 
         # Some text blogs have videos
         if settings.TUMBLR_COLLECT_VIDEOS:
@@ -265,25 +247,17 @@ class TumblrCollector:
                         post_slug=post_slug,
                         numeric_suffix=numeric_suffix,
                     )
-                    files = self._add_file(files, file)
+                    self._add_file(file_queue, processed_keys, file)
                     if numeric_suffix is not None:
                         numeric_suffix += 1
 
-                    if (
-                        len(files) - previous_blog_files_cnt
-                        >= settings.TUMBLR_FILE_LIMIT_PER_BLOG
-                    ):
-                        return files
-
-        return files
-
     def _add_files_from_photo_post(
         self,
-        files: dict[str, FileMetadata],
+        file_queue: queue.Queue[FileMetadata | None],
+        processed_keys: set[str],
         post_html: dict[str, Any],
         blog_name: str,
-        previous_blog_files_cnt: int,
-    ) -> dict[str, FileMetadata]:
+    ) -> None:
         # Get the photo with the highest resolution
         url: str = post_html["photos"][0]["original_size"]["url"]
         post_slug: str | None = post_html["slug"]
@@ -294,9 +268,4 @@ class TumblrCollector:
             post_slug=post_slug,
             numeric_suffix=None,  # a single photo does not require numbering
         )
-        files = self._add_file(files, file)
-
-        if len(files) - previous_blog_files_cnt >= settings.TUMBLR_FILE_LIMIT_PER_BLOG:
-            return files
-
-        return files
+        self._add_file(file_queue, processed_keys, file)
