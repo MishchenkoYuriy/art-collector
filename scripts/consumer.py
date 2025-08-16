@@ -1,6 +1,7 @@
 import logging
 import queue
 
+from config import settings
 from file_metadata import FileMetadata
 from helper import Helper
 from mega import MegaSaver
@@ -19,18 +20,41 @@ class Consumer:
 
     def consumer_worker(self, file_queue: queue.Queue[FileMetadata | None]) -> None:
         while True:
-            file_meta: FileMetadata | None = file_queue.get()
-            if file_meta is None:
+            file: FileMetadata | None = file_queue.get()
+            if file is None:
                 break
 
             try:
-                self.logger.info(f"Processing {file_meta.url}...")
-                self.helper.download_file(file_meta)
-                self.mega.upload_local_file(file_meta)
-                self.helper.delete_local_file(file_meta)
+                if file.size > settings.LOCAL_FILE_SIZE_LIMIT_BYTES:
+                    size_in_mb = self.helper.convert_bytes_to_mb(file.size)
+                    self.logger.warning(
+                        f"The file {file.url} exceeded the "
+                        f"{settings.LOCAL_FILE_SIZE_LIMIT_MB} MB limit. "
+                        f"The file size is {size_in_mb} MB. Skipping..."
+                    )
+                    continue
+
+                if file.local_path.exists():
+                    self.logger.info(f"{file.local_path} already exists. Skipping...")
+                    continue
+
+                mega_folder_size = self.mega.get_mega_folder_size()
+                if mega_folder_size + file.size > settings.MEGA_FOLDER_SIZE_LIMIT_BYTES:
+                    size_in_mb = self.helper.convert_bytes_to_mb(file.size)
+                    self.logger.warning(
+                        f"Adding file {file.url} ({size_in_mb} MB) would "
+                        "exceed folder size limit of "
+                        f"{settings.MEGA_FOLDER_SIZE_LIMIT_MB} MB."
+                    )
+                    continue
+
+                self.logger.info(f"Processing {file.url}...")
+                self.helper.download_file(file)
+                self.mega.upload_local_file(file)
+                self.helper.delete_local_file(file)
 
             except Exception:
-                self.logger.exception(f"Failed to process {file_meta.url}")
+                self.logger.exception(f"Failed to process {file.url}")
 
             finally:
                 file_queue.task_done()
