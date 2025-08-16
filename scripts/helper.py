@@ -27,19 +27,6 @@ class Helper:
             resp = requests.get(str(file.url), stream=True, timeout=10)
             resp.raise_for_status()
 
-            if file.size > settings.LOCAL_FILE_SIZE_LIMIT_BYTES:
-                size_in_mb = self.convert_bytes_to_mb(file.size)
-                self.logger.warning(
-                    f"The file {file.url} exceeded the "
-                    f"{settings.LOCAL_FILE_SIZE_LIMIT_MB} MB limit. "
-                    f"The file size is {size_in_mb} MB. Skipping..."
-                )
-                return
-
-            if file.local_path.exists():
-                self.logger.info(f"{file.local_path} already exists. Skipping...")
-                return
-
             with file.local_path.open("wb") as f:
                 for chunk in resp.iter_content(chunk_size=8192):
                     f.write(chunk)

@@ -76,18 +76,6 @@ class MegaSaver:
 
     def upload_local_file(self, file: FileMetadata) -> None:
         if settings.SAVE_TO_MEGA:
-            mega_folder_size = self.get_mega_folder_size()
-
-            # Check if adding this file would exceed folder size limit
-            if mega_folder_size + file.size > settings.MEGA_FOLDER_SIZE_LIMIT_BYTES:
-                size_in_mb = self.helper.convert_bytes_to_mb(file.size)
-                self.logger.warning(
-                    f"Adding file {file.url} ({size_in_mb} MB) would "
-                    "exceed folder size limit of "
-                    f"{settings.MEGA_FOLDER_SIZE_LIMIT_MB} MB."
-                )
-                return
-
             command = [
                 "mega-put",
                 "-c",
