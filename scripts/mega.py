@@ -68,10 +68,10 @@ class MegaSaver:
                 raise
 
             output_string = result.stdout
-            match = re.search(r"\d+", output_string)
+            match = re.search(r"Total storage used:\s+(\d+)", output_string)
 
             if match:
-                return int(match.group(0))
+                return int(match.group(1))
         return 0
 
     def upload_local_file(self, file: FileMetadata) -> None:
@@ -79,6 +79,7 @@ class MegaSaver:
             command = [
                 "mega-put",
                 "-c",
+                "--ignore-quota-warn",
                 str(file.local_path),
                 str(file.mega_path),
             ]  # -c	Creates remote folder destination in case of not existing
